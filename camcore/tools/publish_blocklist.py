@@ -16,7 +16,7 @@ DENYLIST = ROOT / "camcore/denylist.txt"
 OUTPUT = ROOT / "blocklist.txt"
 MAX_BYTES = 20 * 1024 * 1024
 MIN_ENTRIES = 10000
-USER_AGENT = "CamCore-DNS-Publisher/1.0 (+https://github.com/camcoreau/dns-blocklists)"
+USER_AGENT = "CamCore-DNS-Publisher/1.0 (+https://github.com/Team-CamCore/dns-blocklists)"
 PROTECTED_SUFFIXES = ("camcore.au", "camcore.network", "localhost", "local", "lan", "home.arpa")
 LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
