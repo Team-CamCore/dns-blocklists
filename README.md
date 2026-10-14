@@ -8,9 +8,9 @@
 
 # CamCore DNS Blocklists
 
-[![Validate CamCore DNS policy](https://github.com/camcoreau/dns-blocklists/actions/workflows/camcore-validate.yml/badge.svg)](https://github.com/camcoreau/dns-blocklists/actions/workflows/camcore-validate.yml)
-[![Publish CamCore DNS blocklist](https://github.com/camcoreau/dns-blocklists/actions/workflows/camcore-publish.yml/badge.svg)](https://github.com/camcoreau/dns-blocklists/actions/workflows/camcore-publish.yml)
-[![Source health](https://github.com/camcoreau/dns-blocklists/actions/workflows/camcore-source-health.yml/badge.svg)](https://github.com/camcoreau/dns-blocklists/actions/workflows/camcore-source-health.yml)
+[![Validate CamCore DNS policy](https://github.com/Team-CamCore/dns-blocklists/actions/workflows/camcore-validate.yml/badge.svg)](https://github.com/Team-CamCore/dns-blocklists/actions/workflows/camcore-validate.yml)
+[![Publish CamCore DNS blocklist](https://github.com/Team-CamCore/dns-blocklists/actions/workflows/camcore-publish.yml/badge.svg)](https://github.com/Team-CamCore/dns-blocklists/actions/workflows/camcore-publish.yml)
+[![Source health](https://github.com/Team-CamCore/dns-blocklists/actions/workflows/camcore-source-health.yml/badge.svg)](https://github.com/Team-CamCore/dns-blocklists/actions/workflows/camcore-source-health.yml)
 [![Licence: GPL-3.0](https://img.shields.io/badge/licence-GPL--3.0-blue.svg)](LICENSE)
 
 Production DNS filtering policy, controlled publishing and upstream-source governance for **CamCore – Cameron Family Secure Network**.
@@ -26,7 +26,7 @@ Production DNS filtering policy, controlled publishing and upstream-source gover
 CamCore-managed Pi-hole resolvers use one stable CamCore-owned feed:
 
 ```text
-https://raw.githubusercontent.com/camcoreau/dns-blocklists/main/blocklist.txt
+https://raw.githubusercontent.com/Team-CamCore/dns-blocklists/main/blocklist.txt
 ```
 
 The production feed is generated from **HaGeZi Multi NORMAL** and processed through CamCore policy before publication.
@@ -135,7 +135,8 @@ It validates repository policy and confirms that the published CamCore productio
 Production changes are deployed **one resolver at a time**.
 
 1. Confirm both resolvers are healthy before the change.
-2. Apply the change to the secondary resolver first.
+2. Confirm the replication mechanism and pause automatic configuration sync before staging. Also prevent automatic gravity refreshes from consuming an unvalidated mutable feed on both resolvers.
+3. Apply a pinned candidate feed or configuration to the secondary resolver first.
 3. Rebuild Pi-hole Gravity.
 4. Query the staged resolver directly.
 5. Validate general internet access and the intended block or allow behaviour.
@@ -191,7 +192,7 @@ Security reporting instructions are available in [`SECURITY.md`](SECURITY.md).
 
 For a CamCore DNS filtering issue, false positive or approved change request:
 
-- **CamCore Support:** https://camcore.au/support.html
+- **CamCore Support:** https://camcore.au/support
 - **Email:** `help@camcore.au`
 
 For defects in upstream HaGeZi content, follow the upstream project's reporting process after confirming the issue does not originate from CamCore local policy.
