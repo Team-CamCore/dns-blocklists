@@ -33,6 +33,27 @@ Do not use live resolver exports or query logs as repository attachments. Store 
 
 Apply the change to one resolver first, normally the secondary resolver.
 
+### Replication and feed isolation
+
+Before staging, inspect the deployed configuration replication and gravity schedules. Automatic full configuration sync can overwrite a secondary-only test or propagate a faulty primary change to both resolvers. A shared mutable feed can also reach both resolvers through their independent scheduled gravity updates.
+
+1. Record replication settings and the last successful sync in the private Operations record.
+2. Pause configuration replication using its supported administration interface, and verify it is paused.
+3. Control scheduled gravity refreshes during the test window, or use separate immutable candidate and last-known-good feed URLs.
+4. Back up both resolver configurations privately and record the exact last-known-good feed revision.
+5. Stage the candidate on the secondary resolver using a commit-pinned feed URL; retain the working configuration and feed on the primary.
+6. Do not publish a policy change to the shared production feed until secondary validation passes.
+7. After approval and validation, deploy the same candidate to the primary. Restore the canonical feed URL on both resolvers only after confirming it contains the validated output.
+8. Restore the recorded schedules and replication settings, verify a successful sync, and repeat direct queries against both resolvers.
+
+If replication or feed isolation cannot be verified, stop the rollout. Do not claim staged deployment while automatic propagation remains active.
+
+### Resolver health checks
+
+Check more than the blocking-enabled flag: require a non-empty gravity database, successful recent gravity updates, the approved enabled adlist and group assignments, a known blocked-domain query, and successful public and private queries. Alert on an empty database, failed or overdue refresh, unexpected source changes, and resolver mismatch. Establish expected counts from the current validated feed; historical fixed counts are not reliable drift thresholds.
+
+The repository source-health workflow checks feed availability and plausible content only. It does not prove resolver health, successful application sign-in, or feed freshness. Record those separately in private monitoring.
+
 1. Add or remove only the approved source or exact local entry.
 2. Rebuild gravity using the resolver's supported Pi-hole command or interface.
 3. Confirm the DNS service remains active.
@@ -104,7 +125,7 @@ A successful technical test does not by itself approve production deployment.
 
 When a DNS change causes disruption:
 
-1. Stop further rollout.
+1. Stop further rollout and pause automatic replication and gravity updates to prevent the faulty state from spreading.
 2. Restore the previous source selection or remove the new local entry.
 3. Rebuild gravity.
 4. Confirm the DNS service is healthy.
