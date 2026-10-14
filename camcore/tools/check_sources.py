@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = REPO_ROOT / "camcore/sources.json"
 READ_LIMIT = 512 * 1024
 MIN_PLAUSIBLE_ENTRIES = 50
-USER_AGENT = "CamCore-DNS-Source-Health/1.0 (+https://github.com/camcoreau/dns-blocklists)"
+USER_AGENT = "CamCore-DNS-Source-Health/1.0 (+https://github.com/Team-CamCore/dns-blocklists)"
 
 HOSTS_LINE_RE = re.compile(
     r"^\s*(?:0\.0\.0\.0|127\.0\.0\.1|::)\s+([A-Za-z0-9.-]+)(?:\s|$)"

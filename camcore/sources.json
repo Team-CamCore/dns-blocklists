@@ -13,7 +13,7 @@
       "status": "active",
       "deployment": "production",
       "format": "domains",
-      "url": "https://raw.githubusercontent.com/camcoreau/dns-blocklists/main/blocklist.txt",
+      "url": "https://raw.githubusercontent.com/Team-CamCore/dns-blocklists/main/blocklist.txt",
       "upstream_url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/multi-onlydomains.txt",
       "upstream_repository": "https://github.com/hagezi/dns-blocklists",
       "purpose": "CamCore-owned production feed generated from HaGeZi Multi NORMAL with CamCore local allow and deny policy applied",

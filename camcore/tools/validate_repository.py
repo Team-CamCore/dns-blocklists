@@ -50,7 +50,7 @@ CANONICAL_DESCRIPTION = (
 APPROVED_PRODUCTION_SOURCES = {
     "camcore-hagezi-multi-normal": {
         "format": "domains",
-        "url": "https://raw.githubusercontent.com/camcoreau/dns-blocklists/main/blocklist.txt",
+        "url": "https://raw.githubusercontent.com/Team-CamCore/dns-blocklists/main/blocklist.txt",
         "upstream_repository": "https://github.com/hagezi/dns-blocklists",
         "licence": "GPL-3.0",
     }
