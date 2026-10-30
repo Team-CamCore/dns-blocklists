@@ -35,7 +35,17 @@ Do not use live resolver exports or query logs as repository attachments. Store 
 ### How a change reaches the resolvers
 
 - **Pi-hole configuration** (adlists, local records, groups, local allow or deny entries) is changed on **Mars only**. nebula-sync on Mars performs a full sync to Venus every 15 minutes and runs gravity on Venus after each sync. A change made only on Venus is overwritten at the next sync; a fault on Mars reaches Venus within 15 minutes.
-- **Feed content** (anything that changes `blocklist.txt`) goes live when the publisher runs on `main`. Venus re-reads the feed at the next nebula-sync gravity run, within about 15 minutes. Mars re-reads it at its next scheduled gravity update or a manual `pihole -g`.
+- **Feed content** (anything that changes `blocklist.txt`) goes live when the publisher runs on `main`. Mars and Venus rebuild gravity on the same 15-minute cycle. On 30 October 2026 both rebuilt in the same second at 21:00, 21:15, 21:45 and 22:00 AEDT, and both loaded the feed published at 21:47 at 22:00. A published feed change therefore reaches **both** resolvers within about 15 minutes.
+
+What triggers the 15-minute rebuild on Mars is not yet confirmed; it may be a cron entry or a nebula-sync setting. Until it is, do not rely on pausing nebula-sync to keep a feed change off either resolver. To identify the trigger, run on Mars:
+
+```bash
+sudo crontab -l; cat /etc/cron.d/pihole
+```
+
+```bash
+docker inspect nebula-sync --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -v -i -E 'password|token|secret|key'
+```
 
 Venus is a configuration mirror of Mars. It protects against host failure on Mars, not against configuration error. Do not describe Venus as an independent test stage.
 
@@ -55,11 +65,20 @@ Venus is a configuration mirror of Mars. It protects against host failure on Mar
 1. Open a pull request. Confirm the validation workflow ran and passed; an absent status is not a pass.
 2. Merge only when you are ready to validate, because the publisher runs on merge.
 3. Confirm the publish workflow succeeded and review its run summary for allow-list hits and the published entry count.
-4. Run `pihole -g` on Mars, query Mars directly and run the verification checklist.
-5. After the next nebula-sync run, query Venus directly and confirm both resolvers report the same gravity count as the `# Entries:` header of the published feed.
-6. Confirm the source-health workflow passed after publication.
+4. Within about 15 minutes, both resolvers load the new feed. To validate sooner, run `pihole -g` on Mars.
+5. Query Mars directly and run the verification checklist, then query Venus directly and repeat the key checks.
+6. Confirm both resolvers report the same gravity count as the `# Entries:` header of the published feed.
+7. Confirm the source-health workflow passed after publication.
 
-For a high-risk feed change, pause nebula-sync before merging so Venus keeps its last gravity build until Mars has passed validation.
+For a high-risk feed change, do not publish it to `blocklist.txt` first. Instead:
+
+1. Publish the candidate to a separate feed file in this repository.
+2. Pause nebula-sync on Mars and confirm it is paused.
+3. Point only the Mars adlist at the candidate URL and run `pihole -g`.
+4. Validate Mars. Venus keeps its current adlist and gravity throughout.
+5. Resume nebula-sync once Mars has passed, and confirm Venus matches after the next sync.
+
+Rollback is to point the Mars adlist back at `blocklist.txt`. OPS-1062 uses this method.
 
 If replication state cannot be confirmed, stop the rollout.
 
@@ -138,7 +157,7 @@ A successful technical test does not by itself approve production deployment.
 
 When a DNS change causes disruption:
 
-1. Stop further rollout. If the fault has not reached Venus, pause nebula-sync on Mars.
+1. Stop further rollout. For a configuration fault that has not reached Venus, pause nebula-sync on Mars. A feed fault reaches both resolvers on the 15-minute gravity cycle, so revert it promptly.
 2. For a feed fault, revert the merge on `main` and run the publish workflow manually; for a configuration fault, restore the previous setting on Mars.
 3. Rebuild gravity on Mars with `pihole -g`.
 4. Confirm the DNS service is healthy.

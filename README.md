@@ -160,7 +160,9 @@ CamCore runs two Pi-hole resolvers: **Mars** (primary) and **Venus** (secondary)
 5. Resume nebula-sync. After the next sync, query Venus directly and confirm both resolvers report the same gravity count.
 6. Record any significant production change in CamCore Operations.
 
-**A merged policy change is a production change.** The publisher runs when policy files change on `main`. Venus re-reads the feed at the next nebula-sync gravity run, within about 15 minutes, and Mars at its next scheduled gravity update. Merge only when you are ready to validate.
+**A merged policy change reaches both resolvers.** The publisher runs when policy files change on `main`. Mars and Venus rebuild gravity on the same 15-minute cycle (observed 30 October 2026), so a published feed reaches both within about 15 minutes. Pausing nebula-sync does not hold it back. Merge only when you are ready to validate both resolvers.
+
+To stage a high-risk feed change on Mars alone, publish the candidate to a separate feed file, pause nebula-sync, and point only the Mars adlist at the candidate URL. Venus keeps its current adlist until sync resumes.
 
 The full procedure and rollback requirements are in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
