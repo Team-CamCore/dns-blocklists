@@ -83,7 +83,7 @@ A production-facing pull request should include:
 - rollback method; and
 - the matching CamCore Operations record when operationally significant.
 
-See [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for deployment and rollback requirements. Merging a policy change publishes it to production.
+See [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for deployment and rollback requirements. Merging a policy change publishes it to both resolvers within about 15 minutes.
 
 ## Upstream content
 

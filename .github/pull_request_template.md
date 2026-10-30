@@ -37,7 +37,7 @@ Describe expected impact and false-positive risk, including any relevant effect 
 
 ## Deployment
 
-Merging a policy change publishes it to production. For production-impacting changes, state whether nebula-sync will be paused, the checks to run against Mars, and how replication to Venus will be confirmed.
+Merging a policy change publishes it to both resolvers within about 15 minutes. For production-impacting changes, state the checks to run against Mars and Venus. For a high-risk feed change, describe how a separate candidate feed will be staged on Mars alone (see `docs/OPERATIONS.md`).
 
 Use `Not applicable` for documentation-only changes.
 
