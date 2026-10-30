@@ -1,11 +1,11 @@
 # CamCore-owned policy and automation
-/.editorconfig @camcoreau
-/.gitattributes @camcoreau
-/.gitignore @camcoreau
-/README.md @camcoreau
-/NOTICE.md @camcoreau
-/CONTRIBUTING.md @camcoreau
-/SECURITY.md @camcoreau
-/docs/ @camcoreau
-/camcore/ @camcoreau
-/.github/ @camcoreau
+/.editorconfig @jcam2803
+/.gitattributes @jcam2803
+/.gitignore @jcam2803
+/README.md @jcam2803
+/NOTICE.md @jcam2803
+/CONTRIBUTING.md @jcam2803
+/SECURITY.md @jcam2803
+/docs/ @jcam2803
+/camcore/ @jcam2803
+/.github/ @jcam2803

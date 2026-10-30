@@ -27,7 +27,10 @@ Before adding an entry to `camcore/allowlist.txt`:
 3. Identify the smallest exact domain required.
 4. Determine whether the problem should be corrected upstream instead.
 5. Assess the privacy or security effect of allowing the domain.
-6. Test the exception on one resolver before wider deployment.
+6. Test the exception on Mars before merging.
+7. Add the entry to the matching service section of the file.
+
+To protect a service CamCore has adopted, add its service hosts to the allow-list in the same change that adds the service to the Active Service Register. Use a `*.` namespace entry only when nothing beneath the domain is a tracker or telemetry host, and check the current `blocklist.txt` to confirm what the entry would unblock.
 
 Broad parent-domain exceptions should be avoided unless the full domain scope is deliberately required and reviewed.
 
@@ -40,21 +43,22 @@ Before adding an entry to `camcore/denylist.txt`:
 3. Check for legitimate or shared-hosting use.
 4. Determine whether the entry belongs in the approved upstream source instead.
 5. Assess likely false positives and user impact.
-6. Test the change on one resolver before wider deployment.
+6. Test the change on Mars before merging.
 
 ## File rules
 
 Entries in `camcore/allowlist.txt` and `camcore/denylist.txt` must be:
 
-- one exact domain per line;
-- lower-case;
+- one entry per line, lower-case;
 - written without a scheme, path, port or trailing dot;
-- free of wildcards, regular expressions, hosts-file rows and Adblock syntax;
-- sorted in ascending lexical order;
+- free of regular expressions, hosts-file rows and Adblock syntax;
+- sorted in ascending lexical order within their section;
 - unique within the file; and
 - supported by evidence in the change record rather than a trailing inline comment.
 
-Blank lines and full-line comments beginning with `#` are permitted.
+The allow-list also accepts `*.example.com`, which matches `example.com` and every name beneath it. The deny-list accepts exact domains only, and an entry covered by the allow-list is rejected.
+
+Blank lines and full-line comments beginning with `#` are permitted. A comment or blank line starts a new section, so related service hosts can be grouped under a heading.
 
 ## Required validation
 
@@ -74,12 +78,12 @@ A production-facing pull request should include:
 - reason and evidence for the change;
 - exact policy or source affected;
 - expected service and user impact;
-- resolver used for staged validation;
+- Mars validation and Venus replication checks;
 - verification results;
 - rollback method; and
 - the matching CamCore Operations record when operationally significant.
 
-See [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for staged deployment and rollback requirements.
+See [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for deployment and rollback requirements. Merging a policy change publishes it to production.
 
 ## Upstream content
 

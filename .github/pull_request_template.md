@@ -26,17 +26,18 @@ Describe expected impact and false-positive risk, including any relevant effect 
 
 - [ ] The change follows CamCore's minimal-list policy.
 - [ ] Any local exception uses the smallest exact domain required.
+- [ ] Any new `*.` allow-list namespace covers no tracker or telemetry host in the current `blocklist.txt`.
 - [ ] Any new upstream source is explicitly being evaluated or has been separately approved for production.
 - [ ] `python -m unittest discover -s camcore/tests -v` passes.
 - [ ] `python camcore/tools/validate_repository.py` passes.
 - [ ] Upstream attribution and licence information remain correct.
-- [ ] Production-impacting behaviour has a staged resolver validation plan.
+- [ ] Production-impacting behaviour has a Mars validation and Venus replication plan.
 - [ ] A rollback method is documented below.
 - [ ] The change is recorded in CamCore Operations when operationally significant.
 
-## Staged deployment
+## Deployment
 
-For production-impacting changes, state which resolver will be validated first and what service checks will be performed before rollout to the second resolver.
+Merging a policy change publishes it to production. For production-impacting changes, state whether nebula-sync will be paused, the checks to run against Mars, and how replication to Venus will be confirmed.
 
 Use `Not applicable` for documentation-only changes.
 

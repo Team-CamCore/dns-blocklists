@@ -7,9 +7,14 @@ import ipaddress
 import json
 import re
 import sys
-from collections import Counter
 from pathlib import Path
 from urllib.parse import urlparse
+
+from dns_policy import (
+    REQUIRED_ALLOW_RULES,
+    build_allow_policy,
+    read_list_entries,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -18,8 +23,10 @@ REQUIRED_FILES = (
     "CONTRIBUTING.md", "SECURITY.md", "LICENSE", "blocklist.txt",
     "docs/OPERATIONS.md", "docs/REPOSITORY-SETTINGS.md", "docs/UPSTREAM.md",
     "camcore/README.md", "camcore/sources.json", "camcore/allowlist.txt",
-    "camcore/denylist.txt", "camcore/tools/validate_repository.py",
-    "camcore/tools/check_sources.py", "camcore/tools/publish_blocklist.py",
+    "camcore/denylist.txt", "camcore/tools/dns_policy.py",
+    "camcore/tools/validate_repository.py", "camcore/tools/check_sources.py",
+    "camcore/tools/publish_blocklist.py", "camcore/tests/test_dns_policy.py",
+    "camcore/tests/test_publish_blocklist.py",
     "camcore/tests/test_validate_repository.py", "camcore/tests/test_check_sources.py",
     ".github/CODEOWNERS", ".github/dependabot.yml",
     ".github/pull_request_template.md", ".github/ISSUE_TEMPLATE/config.yml",
@@ -60,10 +67,6 @@ STATUS_DEPLOYMENT = {
     "under-review": "evaluation",
     "retired": "retired",
 }
-PROTECTED_SUFFIXES = (
-    "camcore.au", "camcore.network", "localhost", "local", "lan", "home.arpa"
-)
-DOMAIN_LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 ACTION_REF_RE = re.compile(r"(?m)^\s*(?:-\s*)?uses:\s*[^@\s]+@([^\s#]+)")
 WRITE_PERMISSION_RE = re.compile(
     r"(?mi)^\s*(?:actions|checks|contents|deployments|discussions|id-token|issues|"
@@ -78,44 +81,6 @@ SECRET_PATTERNS = (
     ),
 )
 TEXT_SUFFIXES = {"", ".md", ".txt", ".json", ".py", ".yml", ".yaml"}
-
-
-def is_valid_domain(value: str) -> bool:
-    if not value or value != value.strip() or value != value.lower():
-        return False
-    if len(value) > 253 or value.startswith(".") or value.endswith("."):
-        return False
-    if any(token in value for token in ("://", "/", ":", "*", " ")):
-        return False
-    try:
-        ipaddress.ip_address(value)
-        return False
-    except ValueError:
-        pass
-    labels = value.split(".")
-    return len(labels) >= 2 and all(DOMAIN_LABEL_RE.fullmatch(label) for label in labels)
-
-
-def read_domain_entries(path: Path) -> tuple[list[str], list[str]]:
-    entries: list[str] = []
-    errors: list[str] = []
-    if not path.is_file():
-        return entries, [f"Missing domain list: {path}"]
-    for number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        value = raw.strip()
-        if not value or value.startswith("#"):
-            continue
-        if raw != value:
-            errors.append(f"{path}:{number}: surrounding whitespace is not allowed")
-        if not is_valid_domain(value):
-            errors.append(f"{path}:{number}: invalid exact domain: {value!r}")
-        entries.append(value)
-    for value, count in sorted(Counter(entries).items()):
-        if count > 1:
-            errors.append(f"{path}: duplicate domain: {value}")
-    if entries != sorted(entries):
-        errors.append(f"{path}: entries must be sorted in ascending lexical order")
-    return entries, errors
 
 
 def validate_public_https_url(raw_url: object, label: str) -> list[str]:
@@ -362,16 +327,24 @@ def validate_repository(root: Path = REPO_ROOT) -> list[str]:
     text_cache: dict[Path, str] = {}
     errors = validate_required_content(root, text_cache)
     errors.extend(validate_manifest(root / "camcore/sources.json"))
-    allow, allow_errors = read_domain_entries(root / "camcore/allowlist.txt")
-    deny, deny_errors = read_domain_entries(root / "camcore/denylist.txt")
-    errors.extend(allow_errors + deny_errors)
-    for domain in sorted(set(allow) & set(deny)):
-        errors.append(f"Domain appears in both allow-list and deny-list: {domain}")
-    for domain in deny:
-        if any(domain == suffix or domain.endswith(f".{suffix}") for suffix in PROTECTED_SUFFIXES):
-            errors.append(f"Protected namespace must not appear in local deny-list: {domain}")
+    errors.extend(validate_local_policy(root))
     errors.extend(validate_workflow_security(root, text_cache))
     errors.extend(validate_text_and_secrets(root, text_cache))
+    return errors
+
+
+def validate_local_policy(root: Path) -> list[str]:
+    allow, allow_errors = read_list_entries(root / "camcore/allowlist.txt", allow_wildcards=True)
+    deny, deny_errors = read_list_entries(root / "camcore/denylist.txt", allow_wildcards=False)
+    errors = allow_errors + deny_errors
+    for rule in REQUIRED_ALLOW_RULES:
+        if rule not in allow:
+            errors.append(f"camcore/allowlist.txt: required CamCore namespace missing: {rule}")
+    policy = build_allow_policy(allow)
+    for domain in deny:
+        rule = policy.matching_rule(domain)
+        if rule:
+            errors.append(f"camcore/denylist.txt: {domain} conflicts with allow-list rule {rule}")
     return errors
 
 
@@ -386,8 +359,8 @@ def main() -> int:
         for error in errors:
             print(f" - {error}", file=sys.stderr)
         return 1
-    allow, _ = read_domain_entries(REPO_ROOT / "camcore/allowlist.txt")
-    deny, _ = read_domain_entries(REPO_ROOT / "camcore/denylist.txt")
+    allow, _ = read_list_entries(REPO_ROOT / "camcore/allowlist.txt", allow_wildcards=True)
+    deny, _ = read_list_entries(REPO_ROOT / "camcore/denylist.txt", allow_wildcards=False)
     manifest = json.loads((REPO_ROOT / "camcore/sources.json").read_text(encoding="utf-8"))
     active = sum(
         source.get("status") == "active" and source.get("deployment") == "production"

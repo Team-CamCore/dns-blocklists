@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Perform a bounded, read-only health check of approved production DNS sources."""
+"""Perform a bounded, read-only health check of approved production DNS sources.
+
+For each production feed this confirms that the feed is reachable over HTTPS,
+contains a plausible number of entries, and blocks none of the names in the
+CamCore allow-list.
+"""
 
 from __future__ import annotations
 
@@ -11,11 +16,13 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
 
+from dns_policy import MIN_PUBLISHED_ENTRIES, AllowPolicy, feed_domains, load_allow_policy
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = REPO_ROOT / "camcore/sources.json"
-READ_LIMIT = 512 * 1024
-MIN_PLAUSIBLE_ENTRIES = 50
-USER_AGENT = "CamCore-DNS-Source-Health/1.0 (+https://github.com/Team-CamCore/dns-blocklists)"
+ALLOWLIST_PATH = REPO_ROOT / "camcore/allowlist.txt"
+READ_LIMIT = 20 * 1024 * 1024
+USER_AGENT = "CamCore-DNS-Source-Health/1.1 (+https://github.com/Team-CamCore/dns-blocklists)"
 
 HOSTS_LINE_RE = re.compile(
     r"^\s*(?:0\.0\.0\.0|127\.0\.0\.1|::)\s+([A-Za-z0-9.-]+)(?:\s|$)"
@@ -28,7 +35,7 @@ DOMAIN_LINE_RE = re.compile(
 
 
 def plausible_entry_count(text: str, source_format: str) -> int:
-    """Count a conservative sample of entries in supported source formats."""
+    """Count entries in supported source formats, ignoring comments and junk."""
     count = 0
     for raw_line in text.splitlines():
         line = raw_line.strip()
@@ -41,6 +48,11 @@ def plausible_entry_count(text: str, source_format: str) -> int:
         elif source_format == "domains" and DOMAIN_LINE_RE.fullmatch(line):
             count += 1
     return count
+
+
+def blocked_allowlisted_names(text: str, allow: AllowPolicy) -> list[str]:
+    """Return feed entries that the CamCore allow-list says must never be blocked."""
+    return sorted(domain for domain in feed_domains(text) if allow.permits(domain.lower()))
 
 
 def select_production_sources(manifest: dict[str, object]) -> list[dict[str, object]]:
@@ -57,8 +69,8 @@ def select_production_sources(manifest: dict[str, object]) -> list[dict[str, obj
     ]
 
 
-def check_source(source: dict[str, object]) -> str:
-    """Fetch a bounded sample and return a human-readable success summary."""
+def check_source(source: dict[str, object], allow: AllowPolicy) -> str:
+    """Fetch the feed and return a human-readable success summary."""
     source_id = str(source["id"])
     url = str(source["url"])
     source_format = str(source["format"])
@@ -67,42 +79,50 @@ def check_source(source: dict[str, object]) -> str:
         url,
         headers={
             "User-Agent": USER_AGENT,
-            "Range": f"bytes=0-{READ_LIMIT - 1}",
             "Accept": "text/plain,application/octet-stream;q=0.9,*/*;q=0.1",
             "Cache-Control": "no-cache",
         },
         method="GET",
     )
 
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with urllib.request.urlopen(request, timeout=60) as response:
         status = getattr(response, "status", response.getcode())
-        if status not in (200, 206):
+        if status != 200:
             raise RuntimeError(f"unexpected HTTP status {status}")
         final_url = response.geturl()
         if urlparse(final_url).scheme != "https":
             raise RuntimeError("source redirected to a non-HTTPS endpoint")
-        raw = response.read(READ_LIMIT)
+        raw = response.read(READ_LIMIT + 1)
 
     if not raw:
         raise RuntimeError("source returned no data")
+    if len(raw) > READ_LIMIT:
+        raise RuntimeError("source exceeded the 20 MiB safety limit")
     if b"\x00" in raw:
-        raise RuntimeError("source sample appears to contain binary data")
+        raise RuntimeError("source appears to contain binary data")
 
     text = raw.decode("utf-8", errors="replace")
     count = plausible_entry_count(text, source_format)
-    if count < MIN_PLAUSIBLE_ENTRIES:
+    if count < MIN_PUBLISHED_ENTRIES:
         raise RuntimeError(
-            f"source sample contained only {count} plausible {source_format} entries"
+            f"source contained only {count} plausible {source_format} entries "
+            f"(floor {MIN_PUBLISHED_ENTRIES})"
+        )
+    blocked = blocked_allowlisted_names(text, allow)
+    if blocked:
+        raise RuntimeError(
+            f"source blocks {len(blocked)} allow-listed name(s): {', '.join(blocked[:10])}"
         )
 
-    return f"{source_id}: reachable; sample contains {count} plausible entries"
+    return f"{source_id}: reachable; {count} entries; no allow-listed name is blocked"
 
 
 def main() -> int:
     try:
         manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"Unable to read the source manifest: {exc}", file=sys.stderr)
+        allow = load_allow_policy(ALLOWLIST_PATH)
+    except (OSError, json.JSONDecodeError, RuntimeError) as exc:
+        print(f"Unable to read CamCore DNS policy: {exc}", file=sys.stderr)
         return 1
 
     sources = select_production_sources(manifest)
@@ -113,7 +133,7 @@ def main() -> int:
     failures: list[str] = []
     for source in sources:
         try:
-            print(check_source(source))
+            print(check_source(source, allow))
         except (KeyError, OSError, RuntimeError, urllib.error.URLError) as exc:
             failures.append(f"{source.get('id', '<unknown>')}: {exc}")
 

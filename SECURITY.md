@@ -1,6 +1,6 @@
 # CamCore DNS Security Policy
 
-This policy applies to the CamCore-owned DNS policy, tooling, automation and documentation in `camcoreau/dns-blocklists`.
+This policy applies to the CamCore-owned DNS policy, tooling, automation and documentation in `Team-CamCore/dns-blocklists`.
 
 ## Reporting a security issue
 
@@ -8,7 +8,7 @@ Do **not** open a public GitHub issue containing sensitive information.
 
 Report a vulnerability affecting CamCore-owned policy, publishing logic, validation tooling or repository automation through:
 
-- **CamCore Support:** https://camcore.au/support.html
+- **CamCore Support:** https://camcore.au/support
 - **Email:** `help@camcore.au`
 
 Include a clear description, the affected file or workflow, reproduction steps where safe, expected impact and any proposed mitigation.

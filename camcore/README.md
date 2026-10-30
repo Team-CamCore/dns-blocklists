@@ -9,11 +9,12 @@ The default production model is intentionally minimal: one approved upstream sou
 | Path | Purpose |
 | --- | --- |
 | `sources.json` | Machine-readable source manifest and production deployment state |
-| `allowlist.txt` | Exact domains explicitly permitted by CamCore and removed from the generated feed |
+| `allowlist.txt` | Names CamCore must never block, grouped by service; removed from the generated feed |
 | `denylist.txt` | Exact domains explicitly blocked by CamCore and added to the generated feed |
+| `tools/dns_policy.py` | Shared domain syntax, allow-list matching and production size thresholds |
 | `tools/publish_blocklist.py` | Builds the CamCore production feed from approved source material and local policy |
 | `tools/validate_repository.py` | Offline repository and policy validator |
-| `tools/check_sources.py` | Read-only production source-health check |
+| `tools/check_sources.py` | Read-only check that the published feed is reachable, plausibly sized and blocks no allow-listed name |
 | `tests/` | Unit tests for CamCore DNS validation and policy controls |
 
 The generated repository-root `blocklist.txt` is a production output and must not be edited manually.
@@ -36,25 +37,34 @@ The current manifest defines **HaGeZi Multi NORMAL** as the active upstream sour
 
 ## Local domain-entry format
 
-Use one exact domain per line:
+Use one entry per line:
 
 ```text
-example.com
 subdomain.example.net
+*.example.com
 ```
+
+| Entry | Allow-list | Deny-list |
+| --- | --- | --- |
+| `subdomain.example.net` | That exact name is never published | That exact name is added to the feed |
+| `*.example.com` | `example.com` and every name beneath it are never published | Not accepted |
 
 Entries must:
 
 - use lower-case ASCII or valid IDNA/punycode;
 - omit `http://`, `https://`, paths, ports and trailing dots;
-- avoid wildcards, Adblock syntax, regular expressions, IP addresses and hosts-file rows;
-- remain sorted;
+- avoid Adblock syntax, regular expressions, IP addresses and hosts-file rows;
+- remain sorted within their section;
 - remain unique within the file; and
 - be justified in the change record rather than with trailing inline comments.
 
-Blank lines and full-line comments beginning with `#` are permitted.
+Blank lines and full-line comments beginning with `#` are permitted and start a new section.
 
-An empty local list is valid and preferred when no CamCore-specific exception is required.
+The allow-list must always contain the CamCore and local namespaces: `*.camcore.au`, `*.camcore.network`, `*.home.arpa`, `*.lan`, `*.local` and `*.localhost`. The validator enforces this.
+
+The allow-list is applied after the deny-list, so an allow-listed name is never published. The validator rejects a deny-list entry that the allow-list covers.
+
+An empty deny-list is valid and preferred when no CamCore-specific block is required.
 
 ## Change standard
 
@@ -66,6 +76,6 @@ Before a production policy change is merged:
 2. make the smallest policy change required;
 3. run the unit tests and repository validator;
 4. define the rollback path; and
-5. follow the staged resolver deployment process in [`../docs/OPERATIONS.md`](../docs/OPERATIONS.md).
+5. follow the Mars-first deployment process in [`../docs/OPERATIONS.md`](../docs/OPERATIONS.md).
 
 For upstream governance and attribution, see [`../docs/UPSTREAM.md`](../docs/UPSTREAM.md).

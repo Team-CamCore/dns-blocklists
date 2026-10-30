@@ -14,41 +14,35 @@ sys.path.insert(0, str(TOOLS_DIR))
 import validate_repository as validator  # noqa: E402
 
 
-class DomainValidationTests(unittest.TestCase):
-    def test_accepts_exact_lower_case_domains(self) -> None:
-        self.assertTrue(validator.is_valid_domain("example.com"))
-        self.assertTrue(validator.is_valid_domain("sub-domain.example.net"))
-        self.assertTrue(validator.is_valid_domain("xn--bcher-kva.example"))
+class LocalPolicyValidationTests(unittest.TestCase):
+    def write_policy(self, root: Path, allow: str, deny: str) -> None:
+        (root / "camcore").mkdir(parents=True, exist_ok=True)
+        (root / "camcore/allowlist.txt").write_text(allow, encoding="utf-8")
+        (root / "camcore/denylist.txt").write_text(deny, encoding="utf-8")
 
-    def test_rejects_non_domain_inputs(self) -> None:
-        invalid = (
-            "Example.com",
-            "https://example.com",
-            "example.com/path",
-            "*.example.com",
-            "||example.com^",
-            "192.0.2.1",
-            "localhost",
-            "example.com.",
-            " example.com",
-            "example..com",
-        )
-        for value in invalid:
-            with self.subTest(value=value):
-                self.assertFalse(validator.is_valid_domain(value))
+    def required_rules(self) -> str:
+        return "\n".join(sorted(validator.REQUIRED_ALLOW_RULES)) + "\n"
 
-    def test_domain_file_detects_duplicates_and_sorting(self) -> None:
+    def test_requires_camcore_namespaces(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
-            path = Path(temporary_directory) / "list.txt"
-            path.write_text(
-                "# test\nz.example\na.example\na.example\n",
-                encoding="utf-8",
-            )
-            entries, errors = validator.read_domain_entries(path)
+            root = Path(temporary_directory)
+            self.write_policy(root, "*.camcore.au\n", "")
+            errors = validator.validate_local_policy(root)
+        self.assertTrue(any("*.camcore.network" in error for error in errors))
 
-        self.assertEqual(entries, ["z.example", "a.example", "a.example"])
-        self.assertTrue(any("duplicate domain" in error for error in errors))
-        self.assertTrue(any("must be sorted" in error for error in errors))
+    def test_rejects_deny_entry_covered_by_allow_rule(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self.write_policy(root, self.required_rules(), "files.camcore.au\n")
+            errors = validator.validate_local_policy(root)
+        self.assertTrue(any("conflicts with allow-list rule *.camcore.au" in error for error in errors))
+
+    def test_rejects_namespace_in_deny_list(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self.write_policy(root, self.required_rules(), "*.example.com\n")
+            errors = validator.validate_local_policy(root)
+        self.assertTrue(any("invalid exact domain" in error for error in errors))
 
 
 class UrlValidationTests(unittest.TestCase):

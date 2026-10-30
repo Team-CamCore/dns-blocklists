@@ -3,11 +3,21 @@
 
 from __future__ import annotations
 
-import ipaddress
 import json
-import re
+import os
 import urllib.request
+from collections import defaultdict
 from pathlib import Path
+
+from dns_policy import (
+    MAX_SHRINK_FRACTION,
+    MIN_PUBLISHED_ENTRIES,
+    AllowPolicy,
+    feed_domains,
+    is_valid_domain,
+    load_allow_policy,
+    load_deny_entries,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "camcore/sources.json"
@@ -15,36 +25,8 @@ ALLOWLIST = ROOT / "camcore/allowlist.txt"
 DENYLIST = ROOT / "camcore/denylist.txt"
 OUTPUT = ROOT / "blocklist.txt"
 MAX_BYTES = 20 * 1024 * 1024
-MIN_ENTRIES = 10000
-USER_AGENT = "CamCore-DNS-Publisher/1.0 (+https://github.com/Team-CamCore/dns-blocklists)"
-PROTECTED_SUFFIXES = ("camcore.au", "camcore.network", "localhost", "local", "lan", "home.arpa")
-LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
-
-
-def valid_domain(value: str) -> bool:
-    if not value or value != value.lower() or len(value) > 253:
-        return False
-    if value.startswith(".") or value.endswith(".") or any(x in value for x in ("://", "/", ":", "*", " ")):
-        return False
-    try:
-        ipaddress.ip_address(value)
-        return False
-    except ValueError:
-        pass
-    labels = value.split(".")
-    return len(labels) >= 2 and all(LABEL_RE.fullmatch(label) for label in labels)
-
-
-def read_local(path: Path) -> set[str]:
-    values: set[str] = set()
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        value = raw.strip()
-        if not value or value.startswith("#"):
-            continue
-        if not valid_domain(value):
-            raise RuntimeError(f"Invalid local domain in {path}: {value!r}")
-        values.add(value)
-    return values
+USER_AGENT = "CamCore-DNS-Publisher/1.1 (+https://github.com/Team-CamCore/dns-blocklists)"
+UPSTREAM_HEADER_KEYS = ("Version",)
 
 
 def production_source() -> dict[str, object]:
@@ -58,7 +40,26 @@ def production_source() -> dict[str, object]:
     return source
 
 
-def fetch_domains(url: str) -> set[str]:
+def parse_upstream(text: str) -> tuple[set[str], dict[str, str]]:
+    """Validate upstream text and return its domains and selected header values."""
+    domains: set[str] = set()
+    header: dict[str, str] = {}
+    for number, raw_line in enumerate(text.splitlines(), 1):
+        line = raw_line.strip().lower()
+        if not line:
+            continue
+        if line.startswith(("#", "!")):
+            key, _, value = raw_line.lstrip("#! ").partition(":")
+            if key in UPSTREAM_HEADER_KEYS and value.strip():
+                header[key] = value.strip()
+            continue
+        if not is_valid_domain(line):
+            raise RuntimeError(f"Unexpected upstream entry at line {number}: {raw_line!r}")
+        domains.add(line)
+    return domains, header
+
+
+def fetch_upstream(url: str) -> tuple[set[str], dict[str, str]]:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "text/plain"})
     with urllib.request.urlopen(request, timeout=60) as response:
         if response.geturl().split(":", 1)[0] != "https":
@@ -66,22 +67,63 @@ def fetch_domains(url: str) -> set[str]:
         raw = response.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES:
         raise RuntimeError("Upstream feed exceeded the 20 MiB safety limit")
-    text = raw.decode("utf-8")
-    domains: set[str] = set()
-    for number, raw_line in enumerate(text.splitlines(), 1):
-        line = raw_line.strip().lower()
-        if not line or line.startswith(("#", "!")):
-            continue
-        if not valid_domain(line):
-            raise RuntimeError(f"Unexpected upstream entry at line {number}: {raw_line!r}")
-        domains.add(line)
-    if len(domains) < MIN_ENTRIES:
-        raise RuntimeError(f"Upstream feed contained only {len(domains)} valid domains; refusing to replace last-known-good output")
-    return domains
+    return parse_upstream(raw.decode("utf-8"))
 
 
-def protected(domain: str) -> bool:
-    return any(domain == suffix or domain.endswith(f".{suffix}") for suffix in PROTECTED_SUFFIXES)
+def apply_policy(
+    upstream: set[str], allow: AllowPolicy, deny: set[str]
+) -> tuple[set[str], dict[str, list[str]]]:
+    """Apply CamCore policy and return the output plus upstream names each allow rule removed."""
+    removed: dict[str, list[str]] = defaultdict(list)
+    output: set[str] = set()
+    for domain in upstream | deny:
+        rule = allow.matching_rule(domain)
+        if rule is None:
+            output.add(domain)
+        elif domain in upstream:
+            removed[rule].append(domain)
+    return output, {rule: sorted(names) for rule, names in sorted(removed.items())}
+
+
+def check_size(new_count: int, previous_count: int) -> None:
+    """Refuse a build that is implausibly small, so the last-known-good feed is kept."""
+    if new_count < MIN_PUBLISHED_ENTRIES:
+        raise RuntimeError(
+            f"Build produced only {new_count} domains (floor {MIN_PUBLISHED_ENTRIES}); "
+            "refusing to replace the last-known-good feed"
+        )
+    if previous_count and new_count < previous_count * (1 - MAX_SHRINK_FRACTION):
+        raise RuntimeError(
+            f"Build shrank from {previous_count} to {new_count} domains, more than "
+            f"{MAX_SHRINK_FRACTION:.0%}; refusing to publish without review"
+        )
+
+
+def report(removed: dict[str, list[str]], count: int, header: dict[str, str]) -> None:
+    """Print a run summary and, inside GitHub Actions, annotate allow-list hits."""
+    lines = [
+        "## CamCore DNS blocklist build",
+        "",
+        f"- Published domains: **{count}**",
+        f"- Upstream version: `{header.get('Version', 'unknown')}`",
+        "",
+    ]
+    if removed:
+        lines += ["### Upstream names kept open by the CamCore allow-list", "", "| Allow rule | Names removed |", "| --- | --- |"]
+        for rule, names in removed.items():
+            sample = ", ".join(f"`{name}`" for name in names[:10])
+            more = f" and {len(names) - 10} more" if len(names) > 10 else ""
+            lines.append(f"| `{rule}` | {sample}{more} |")
+            if os.environ.get("GITHUB_ACTIONS") == "true":
+                print(f"::notice title=Allow-list hit::{rule} kept {len(names)} upstream name(s) open: {', '.join(names[:5])}")
+    else:
+        lines.append("No upstream entry matched the CamCore allow-list.")
+    summary = "\n".join(lines) + "\n"
+    print(summary)
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        with open(summary_path, "a", encoding="utf-8") as handle:
+            handle.write(summary)
 
 
 def main() -> int:
@@ -90,24 +132,31 @@ def main() -> int:
     if not isinstance(upstream_url, str) or not upstream_url.startswith("https://"):
         raise RuntimeError("Production source must define an HTTPS upstream_url")
 
-    domains = fetch_domains(upstream_url)
-    allow = read_local(ALLOWLIST)
-    deny = read_local(DENYLIST)
+    allow = load_allow_policy(ALLOWLIST)
+    deny = load_deny_entries(DENYLIST)
+    upstream, header = fetch_upstream(upstream_url)
+    domains, removed = apply_policy(upstream, allow, deny)
 
-    domains.difference_update(allow)
-    domains.update(deny)
-    domains = {domain for domain in domains if not protected(domain)}
+    previous = feed_domains(OUTPUT.read_text(encoding="utf-8")) if OUTPUT.is_file() else []
+    check_size(len(domains), len(previous))
+    leaked = sorted(domain for domain in domains if allow.permits(domain))
+    if leaked:
+        raise RuntimeError(f"Allow-listed names reached the output: {leaked[:10]}")
 
     lines = [
         "# CamCore DNS Blocklist",
         "# Production feed for CamCore-managed Pi-hole resolvers.",
         "# Source: HaGeZi Multi NORMAL; CamCore allow/deny policy applied.",
+        f"# Upstream version: {header.get('Version', 'unknown')}",
+        f"# Entries: {len(domains)}",
         "# Generated automatically. Do not edit this file manually.",
         "",
         *sorted(domains),
     ]
-    OUTPUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"Published {len(domains)} domains to {OUTPUT}")
+    temporary = OUTPUT.with_suffix(".tmp")
+    temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    temporary.replace(OUTPUT)
+    report(removed, len(domains), header)
     return 0
 
 

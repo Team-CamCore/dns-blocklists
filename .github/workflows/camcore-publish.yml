@@ -8,8 +8,7 @@ on:
       - "camcore/sources.json"
       - "camcore/allowlist.txt"
       - "camcore/denylist.txt"
-      - "camcore/tools/publish_blocklist.py"
-      - "camcore/tools/validate_repository.py"
+      - "camcore/tools/**"
       - "camcore/tests/**"
       - ".github/workflows/camcore-publish.yml"
   schedule:
