@@ -84,11 +84,15 @@ release-assets.githubusercontent.com
 
 # Container images, Cloudflare tunnels and Let's Encrypt certificates
 *.argotunnel.com
+*.cftunnel.com
 *.docker.com
 *.docker.io
 *.lencr.org
 *.letsencrypt.org
 api.cloudflare.com
+cloudflare.com
+dash.cloudflare.com
+pqtunnels.cloudflareresearch.com
 
 # NetBird secure remote access
 api.netbird.io
