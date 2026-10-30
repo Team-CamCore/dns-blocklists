@@ -101,6 +101,9 @@ class RepositoryAllowListTests(unittest.TestCase):
             "plex.tv",
             "abc123.def456.plex.direct",
             "uptime.betterstack.com",
+            "region1.v2.argotunnel.com",
+            "quic.cftunnel.com",
+            "dash.cloudflare.com",
         ):
             with self.subTest(name=name):
                 self.assertTrue(policy.permits(name))
@@ -115,6 +118,7 @@ class RepositoryAllowListTests(unittest.TestCase):
             "analytics.synology.com",
             "piwik.proxmox.com",
             "metrics.anthropic.com",
+            "tr.www.cloudflare.com",
         ):
             with self.subTest(name=name):
                 self.assertFalse(policy.permits(name))
