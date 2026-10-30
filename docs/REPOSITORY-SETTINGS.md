@@ -1,6 +1,6 @@
 # CamCore DNS Repository Standard
 
-This document defines the required GitHub repository controls for `camcoreau/dns-blocklists`.
+This document defines the required GitHub repository controls for `Team-CamCore/dns-blocklists`.
 
 Version-controlled policy and automation are only one part of the control model. Repository settings should prevent unvalidated changes from bypassing the CamCore DNS publishing process.
 

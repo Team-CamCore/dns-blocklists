@@ -9,6 +9,7 @@ TOOLS_DIR = REPO_ROOT / "camcore" / "tools"
 sys.path.insert(0, str(TOOLS_DIR))
 
 import check_sources  # noqa: E402
+import dns_policy  # noqa: E402
 
 
 class PlausibleEntryCountTests(unittest.TestCase):
@@ -38,6 +39,26 @@ https://invalid.example
 *.invalid.example
 """
         self.assertEqual(check_sources.plausible_entry_count(sample, "domains"), 2)
+
+
+class AllowListEnforcementTests(unittest.TestCase):
+    def test_reports_feed_entries_that_break_the_allow_list(self) -> None:
+        allow = dns_policy.build_allow_policy(["*.microsoftonline.com", "plex.tv"])
+        feed = """# CamCore DNS Blocklist
+ads.example
+analytics.plex.tv
+login.microsoftonline.com
+plex.tv
+"""
+        self.assertEqual(
+            check_sources.blocked_allowlisted_names(feed, allow),
+            ["login.microsoftonline.com", "plex.tv"],
+        )
+
+    def test_committed_feed_blocks_no_allow_listed_name(self) -> None:
+        allow = dns_policy.load_allow_policy(REPO_ROOT / "camcore/allowlist.txt")
+        feed = (REPO_ROOT / "blocklist.txt").read_text(encoding="utf-8")
+        self.assertEqual(check_sources.blocked_allowlisted_names(feed, allow), [])
 
 
 class ProductionSourceSelectionTests(unittest.TestCase):

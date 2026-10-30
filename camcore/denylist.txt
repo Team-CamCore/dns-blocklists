@@ -1,3 +1,4 @@
 # CamCore DNS deny-list
-# One reviewed, exact lower-case domain per line.
+# One reviewed, exact lower-case domain per line. Namespaces (*.) are not accepted.
+# A deny entry must not be covered by any allow-list rule.
 # Empty by design until a specific security or operational requirement is approved.

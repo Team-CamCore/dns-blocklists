@@ -1,3 +1,156 @@
 # CamCore DNS allow-list
-# One reviewed, exact lower-case domain per line.
-# Empty by design until a documented exception is required.
+#
+# Names CamCore must never block. The publisher removes every matching name
+# from the upstream data before blocklist.txt is published, and the source-health
+# check fails if a published feed ever contains one.
+#
+# Syntax, one entry per line:
+#   host.example.com    that exact name only
+#   *.example.com       example.com and every name beneath it
+#
+# Entries are lower-case and sorted within each section. Use *. only where no
+# name under the namespace is a tracker or telemetry host. Where the parent
+# domain also serves telemetry (github.com, plex.tv, ubuntu.com), list the
+# exact service hosts instead. Record the reason in the change record.
+#
+# Sections are grouped by the CamCore service that depends on them. The
+# CamCore Active Service Register is the source for what CamCore uses.
+
+# CamCore-owned and local resolver namespaces (required; enforced by the validator)
+*.camcore.au
+*.camcore.network
+*.home.arpa
+*.lan
+*.local
+*.localhost
+
+# Microsoft 365, Entra ID sign-in and MFA
+*.aadrm.com
+*.azurerms.com
+*.cloud.microsoft
+*.microsoft365.com
+*.microsoftazuread-sso.com
+*.microsoftonline-p.com
+*.microsoftonline.com
+*.msauth.net
+*.msauthimages.net
+*.msftauth.net
+*.msftauthimages.net
+*.msftidentity.com
+*.msidentity.com
+*.office.com
+*.office.net
+*.office365.com
+*.onedrive.com
+*.onmicrosoft.com
+*.outlook.com
+*.protection.outlook.com
+*.sharepoint.com
+*.sharepointonline.com
+*.static.microsoft
+*.svc.ms
+*.teams.microsoft.com
+account.live.com
+login.live.com
+login.windows.net
+
+# Intune, Windows Update and Microsoft Defender for managed devices
+*.delivery.mp.microsoft.com
+*.dm.microsoft.com
+*.events.data.microsoft.com
+*.manage.microsoft.com
+*.notify.windows.com
+*.security.microsoft.com
+*.securitycenter.windows.com
+*.smartscreen-prod.microsoft.com
+*.smartscreen.microsoft.com
+*.update.microsoft.com
+*.wd.microsoft.com
+*.windowsupdate.com
+*.wns.windows.com
+enterpriseregistration.windows.net
+
+# GitHub: this repository, the production feed and container images
+*.ghcr.io
+api.github.com
+avatars.githubusercontent.com
+codeload.github.com
+github.com
+github.githubassets.com
+objects.githubusercontent.com
+pkg-containers.githubusercontent.com
+raw.githubusercontent.com
+release-assets.githubusercontent.com
+
+# Container images, Cloudflare tunnels and Let's Encrypt certificates
+*.argotunnel.com
+*.docker.com
+*.docker.io
+*.lencr.org
+*.letsencrypt.org
+api.cloudflare.com
+
+# NetBird secure remote access
+api.netbird.io
+netbird.io
+pkgs.netbird.io
+
+# Cameron-Media: Plex, Jellyfin, HDHomeRun and media automation metadata
+*.hdhomerun.com
+*.jellyfin.org
+*.plex.direct
+*.plexapp.com
+*.radarr.video
+*.servarr.com
+*.silicondust.com
+*.sonarr.tv
+*.tautulli.com
+*.themoviedb.org
+*.thetvdb.com
+*.tmdb.org
+*.trakt.tv
+*.trash-guides.info
+app.plex.tv
+clients.plex.tv
+metadata.provider.plex.tv
+plex.tv
+pubsub.plex.tv
+
+# Operations: YouTrack, Better Stack, CrowdSec, Bitwarden and Claude
+*.betteruptime.com
+*.bitwarden.com
+*.bitwarden.net
+*.claude.ai
+*.claude.com
+*.crowdsec.net
+*.youtrack.cloud
+anthropic.com
+api.anthropic.com
+betterstack.com
+uptime.betterstack.com
+
+# Host platforms and patching: Synology, Proxmox, Ubuntu, Raspberry Pi, Pi-hole and Unbound
+*.archive.ubuntu.com
+*.enterprise.proxmox.com
+*.internic.net
+*.pi-hole.net
+*.raspberrypi.com
+*.raspberrypi.org
+*.synologydownload.com
+api.snapcraft.io
+archive.ubuntu.com
+changelogs.ubuntu.com
+download.proxmox.com
+esm.ubuntu.com
+global.download.synology.com
+ports.ubuntu.com
+security.ubuntu.com
+synology.com
+
+# CamCore Billing (WHMCS licensing and Synergy Wholesale domain automation)
+*.synergywholesale.com
+*.whmcs.com
+
+# Network edge: eero and Launtel
+*.eero.com
+*.launtel.net.au

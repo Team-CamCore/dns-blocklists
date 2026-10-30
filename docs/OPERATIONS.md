@@ -2,7 +2,7 @@
 
 ## Objective
 
-Apply DNS filtering changes safely, consistently and with a tested rollback path across the CamCore primary and secondary Pi-hole resolvers.
+Apply DNS filtering changes safely, consistently and with a tested rollback path across the CamCore Pi-hole resolvers: **Mars** (primary) and **Venus** (secondary).
 
 CamCore uses a minimal-list policy. The approved production source is defined in `camcore/sources.json`. A source or local entry is not approved merely because it exists elsewhere in this fork.
 
@@ -12,6 +12,7 @@ CamCore uses a minimal-list policy. The approved production source is defined in
 | --- | --- | --- |
 | Source maintenance | Approved source URL or metadata correction | Validate, stage and verify |
 | Allow-list exception | A legitimate service is blocked | Investigate first; allow the smallest exact domain |
+| Service protection | CamCore adopts a new platform | Add its service hosts to the allow-list with the service-register change |
 | Local deny-list entry | A specific confirmed threat or unwanted domain | Document evidence and impact |
 | New source evaluation | Testing an additional upstream list | Keep out of production until separately approved |
 | Emergency rollback | A change disrupts essential access | Revert immediately, verify and record |
@@ -23,51 +24,56 @@ CamCore uses a minimal-list policy. The approved production source is defined in
 3. Confirm the current production source selection matches `camcore/sources.json`.
 4. Back up the resolver configuration using the approved Pi-hole backup method.
 5. Record the last known working list configuration.
-6. Confirm both resolvers are healthy before making any change.
+6. Confirm both resolvers are healthy and report the same gravity count before making any change.
 7. Prepare exact test queries and service checks.
 8. Define the rollback action before deployment.
 
 Do not use live resolver exports or query logs as repository attachments. Store operational evidence only in an approved private system.
 
-## Staged deployment
+## Deployment model
 
-Apply the change to one resolver first, normally the secondary resolver.
+### How a change reaches the resolvers
 
-### Replication and feed isolation
+- **Pi-hole configuration** (adlists, local records, groups, local allow or deny entries) is changed on **Mars only**. nebula-sync on Mars performs a full sync to Venus every 15 minutes and runs gravity on Venus after each sync. A change made only on Venus is overwritten at the next sync; a fault on Mars reaches Venus within 15 minutes.
+- **Feed content** (anything that changes `blocklist.txt`) goes live when the publisher runs on `main`. Venus re-reads the feed at the next nebula-sync gravity run, within about 15 minutes. Mars re-reads it at its next scheduled gravity update or a manual `pihole -g`.
 
-Before staging, inspect the deployed configuration replication and gravity schedules. Automatic full configuration sync can overwrite a secondary-only test or propagate a faulty primary change to both resolvers. A shared mutable feed can also reach both resolvers through their independent scheduled gravity updates.
+Venus is a configuration mirror of Mars. It protects against host failure on Mars, not against configuration error. Do not describe Venus as an independent test stage.
 
-1. Record replication settings and the last successful sync in the private Operations record.
-2. Pause configuration replication using its supported administration interface, and verify it is paused.
-3. Control scheduled gravity refreshes during the test window, or use separate immutable candidate and last-known-good feed URLs.
-4. Back up both resolver configurations privately and record the exact last-known-good feed revision.
-5. Stage the candidate on the secondary resolver using a commit-pinned feed URL; retain the working configuration and feed on the primary.
-6. Do not publish a policy change to the shared production feed until secondary validation passes.
-7. After approval and validation, deploy the same candidate to the primary. Restore the canonical feed URL on both resolvers only after confirming it contains the validated output.
-8. Restore the recorded schedules and replication settings, verify a successful sync, and repeat direct queries against both resolvers.
+### Pi-hole configuration change
 
-If replication or feed isolation cannot be verified, stop the rollout. Do not claim staged deployment while automatic propagation remains active.
+1. For a higher-risk change, pause nebula-sync on Mars and confirm it is paused.
+2. Apply the change on Mars and rebuild gravity with `pihole -g`.
+3. Confirm `pihole-FTL` remains active.
+4. Query Mars directly so the result cannot come from Venus.
+5. Test the intended block or allow behaviour and representative unaffected domains.
+6. Run the verification checklist below against Mars.
+7. Resume nebula-sync. After the next sync, query Venus directly and repeat the key checks.
+8. Confirm both resolvers report the same gravity count.
+
+### Feed policy change (this repository)
+
+1. Open a pull request. Confirm the validation workflow ran and passed; an absent status is not a pass.
+2. Merge only when you are ready to validate, because the publisher runs on merge.
+3. Confirm the publish workflow succeeded and review its run summary for allow-list hits and the published entry count.
+4. Run `pihole -g` on Mars, query Mars directly and run the verification checklist.
+5. After the next nebula-sync run, query Venus directly and confirm both resolvers report the same gravity count as the `# Entries:` header of the published feed.
+6. Confirm the source-health workflow passed after publication.
+
+For a high-risk feed change, pause nebula-sync before merging so Venus keeps its last gravity build until Mars has passed validation.
+
+If replication state cannot be confirmed, stop the rollout.
 
 ### Resolver health checks
 
-Check more than the blocking-enabled flag: require a non-empty gravity database, successful recent gravity updates, the approved enabled adlist and group assignments, a known blocked-domain query, and successful public and private queries. Alert on an empty database, failed or overdue refresh, unexpected source changes, and resolver mismatch. Establish expected counts from the current validated feed; historical fixed counts are not reliable drift thresholds.
+Check more than the blocking-enabled flag: require a non-empty gravity database, successful recent gravity updates, exactly one enabled adlist (the CamCore feed), a known blocked-domain query, and successful public and private queries. Alert on an empty or collapsed gravity count, a count that differs between Mars and Venus, an overdue refresh and any unexpected adlist. The published feed header states the expected entry count.
 
-The repository source-health workflow checks feed availability and plausible content only. It does not prove resolver health, successful application sign-in, or feed freshness. Record those separately in private monitoring.
+The repository source-health workflow proves the published feed is reachable, plausibly sized and free of allow-listed names. It does not prove resolver health or successful application sign-in. Record those in private monitoring.
 
-1. Add or remove only the approved source or exact local entry.
-2. Rebuild gravity using the resolver's supported Pi-hole command or interface.
-3. Confirm the DNS service remains active.
-4. Query the test resolver directly so the result cannot come from the other resolver.
-5. Test the intended block or allow behaviour.
-6. Test representative unaffected domains.
-7. Review Pi-hole logs for unexpected failures without copying private logs into this repository.
-8. Leave the other resolver unchanged until the first-stage checks pass.
-
-After successful validation, repeat the same controlled change on the primary resolver.
+Do not use live resolver exports or query logs as repository evidence.
 
 ## Verification checklist
 
-Confirm on both resolvers:
+Confirm on Mars, then on Venus after replication:
 
 - DNS resolution is healthy.
 - General internet access works.
@@ -78,19 +84,26 @@ Confirm on both resolvers:
 - The intended domain is blocked or allowed.
 - No unexpected spike in blocked requests or resolver errors is visible.
 - The configured source set still matches the approved manifest.
+- Mars and Venus report the same gravity count.
 
 Where command-line access is available, use direct resolver queries and the supported Pi-hole status and gravity commands. Do not copy example commands with placeholder addresses into production without confirming the target.
 
 ## Allow-list procedure
 
+### Fixing a blocked service
+
 1. Reproduce the user or service problem.
-2. Confirm Pi-hole blocked the relevant query.
+2. Confirm Pi-hole blocked the relevant query (`pihole -q <domain>` on Mars).
 3. Identify the smallest exact domain needed.
 4. Check whether the domain is a dependency, tracker, content host or authentication endpoint.
-5. Test a temporary exception on one resolver.
+5. For an urgent fix, add a temporary exact allow entry on Mars with `pihole allow <domain>`; never disable the adlist, because that removes filtering from both resolvers once nebula-sync runs.
 6. Verify that the affected service works and unrelated blocking remains intact.
-7. Add the exact domain to `camcore/allowlist.txt` in sorted order.
-8. Run repository validation and record the reason.
+7. Add the exact domain to the matching service section of `camcore/allowlist.txt`, in sorted order.
+8. Run repository validation, merge, confirm publication, then remove the temporary Pi-hole entry on Mars.
+
+### Protecting a service CamCore depends on
+
+When CamCore adopts a platform, add its service hosts to `camcore/allowlist.txt` in the same change that adds it to the Active Service Register. Use `*.domain` only when nothing beneath the domain is a tracker or telemetry host; check the current `blocklist.txt` first, because a namespace entry unblocks every listed name beneath it. List exact hosts where a vendor also serves telemetry from the same parent domain.
 
 Avoid broad parent-domain exceptions unless every subdomain is deliberately required and the risk has been reviewed.
 
@@ -99,9 +112,9 @@ Avoid broad parent-domain exceptions unless every subdomain is deliberately requ
 1. Confirm the domain and evidence.
 2. Check for legitimate or shared-hosting use.
 3. Determine whether the entry belongs in an upstream project.
-4. Test the exact domain on one resolver.
+4. Test the exact domain on Mars with `pihole deny <domain>`.
 5. Verify the intended result and likely user impact.
-6. Add the exact domain to `camcore/denylist.txt` in sorted order.
+6. Add the exact domain to `camcore/denylist.txt` in sorted order. The validator rejects an entry covered by the allow-list.
 7. Run repository validation and record the reason.
 
 ## New source evaluation
@@ -125,11 +138,11 @@ A successful technical test does not by itself approve production deployment.
 
 When a DNS change causes disruption:
 
-1. Stop further rollout and pause automatic replication and gravity updates to prevent the faulty state from spreading.
-2. Restore the previous source selection or remove the new local entry.
-3. Rebuild gravity.
+1. Stop further rollout. If the fault has not reached Venus, pause nebula-sync on Mars.
+2. For a feed fault, revert the merge on `main` and run the publish workflow manually; for a configuration fault, restore the previous setting on Mars.
+3. Rebuild gravity on Mars with `pihole -g`.
 4. Confirm the DNS service is healthy.
-5. Query both resolvers directly.
+5. Query Mars and Venus directly, and resume nebula-sync once Mars is correct.
 6. Re-test internet, Microsoft 365, NetBird and CamCore services.
 7. Restore the saved configuration if a simple reversal is insufficient.
 8. Record the impact, rollback and follow-up action in CamCore Operations.
@@ -142,8 +155,7 @@ Record:
 
 - What changed.
 - Why it changed.
-- Which resolver was tested first.
-- Validation results.
+- Mars validation results and confirmation of replication to Venus.
 - Whether rollback was required.
 - Any upstream report created.
 - The final production source and exception state.

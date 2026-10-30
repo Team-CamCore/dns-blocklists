@@ -8,7 +8,7 @@ The production source of truth is [`camcore/sources.json`](../camcore/sources.js
 
 ## Repository origin
 
-`camcoreau/dns-blocklists` originated as a GitHub fork of [`hagezi/dns-blocklists`](https://github.com/hagezi/dns-blocklists).
+`Team-CamCore/dns-blocklists` (formerly `camcoreau/dns-blocklists`) originated as a GitHub fork of [`hagezi/dns-blocklists`](https://github.com/hagezi/dns-blocklists).
 
 HaGeZi and its contributors retain authorship of their upstream generated lists, source documentation and other original material. CamCore retains the applicable upstream licence and does not claim authorship of HaGeZi content. The inherited HaGeZi material remains subject to **GPL-3.0** and its applicable upstream attribution requirements.
 
@@ -21,8 +21,8 @@ The production relationship is intentionally controlled:
 1. `camcore/sources.json` identifies the active production policy and approved upstream URL.
 2. The CamCore publisher downloads the approved HaGeZi Multi NORMAL domains feed over HTTPS.
 3. Upstream data is validated before processing.
-4. Domains in `camcore/allowlist.txt` are removed.
-5. Domains in `camcore/denylist.txt` are added.
+4. Domains in `camcore/denylist.txt` are added.
+5. Every name covered by `camcore/allowlist.txt` is removed.
 6. The result is normalised, deduplicated, sorted and validated.
 7. A successful build is published as the CamCore-owned `blocklist.txt` URL used by CamCore resolvers.
 8. A failed build leaves the last-known-good production feed untouched.
@@ -35,7 +35,7 @@ Using HaGeZi as production source material does not mean:
 - CamCore independently verifies every upstream domain individually;
 - every HaGeZi list or category is approved for CamCore;
 - the full upstream repository is mirrored into CamCore production; or
-- upstream changes may bypass CamCore validation, staged deployment or change control.
+- upstream changes may bypass CamCore validation, resolver validation or change control.
 
 ## Branch separation
 
@@ -64,7 +64,7 @@ When reviewing an upstream change or refreshing provenance material:
 4. Update `upstream-hagezi` only when a provenance refresh is intentionally required.
 5. Change `camcore/sources.json` only through a deliberate CamCore production-policy change.
 6. Run the CamCore validator and unit tests after policy or governance changes.
-7. Stage production-impacting changes on one resolver before wider rollout.
+7. Validate production-impacting changes on Mars before confirming replication to Venus.
 8. Record significant production decisions in CamCore Operations.
 
 An upstream source update becoming available does not by itself authorise a CamCore policy change.
