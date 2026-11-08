@@ -37,6 +37,14 @@ class LocalPolicyValidationTests(unittest.TestCase):
             errors = validator.validate_local_policy(root)
         self.assertTrue(any("conflicts with allow-list rule *.camcore.au" in error for error in errors))
 
+    def test_rejects_deny_entry_that_is_parent_of_allow_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            allow = "\n".join(sorted([*validator.REQUIRED_ALLOW_RULES, "login.vendor.example"])) + "\n"
+            self.write_policy(root, allow, "vendor.example\n")
+            errors = validator.validate_local_policy(root)
+        self.assertTrue(any("would block allow-list rule login.vendor.example" in error for error in errors))
+
     def test_rejects_namespace_in_deny_list(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

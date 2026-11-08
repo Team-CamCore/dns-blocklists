@@ -12,11 +12,13 @@
       "name": "CamCore DNS Blocklist - HaGeZi Multi NORMAL",
       "status": "active",
       "deployment": "production",
-      "format": "domains",
-      "url": "https://raw.githubusercontent.com/Team-CamCore/dns-blocklists/main/blocklist.txt",
-      "upstream_url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/multi-onlydomains.txt",
+      "format": "adblock",
+      "url": "https://raw.githubusercontent.com/Team-CamCore/dns-blocklists/main/blocklist-adblock.txt",
+      "rollback_format": "domains",
+      "rollback_url": "https://raw.githubusercontent.com/Team-CamCore/dns-blocklists/main/blocklist.txt",
+      "upstream_url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/multi.txt",
       "upstream_repository": "https://github.com/hagezi/dns-blocklists",
-      "purpose": "CamCore-owned production feed generated from HaGeZi Multi NORMAL with CamCore local allow and deny policy applied",
+      "purpose": "CamCore-owned production feed generated from HaGeZi Multi NORMAL in Adblock format, so Pi-hole blocks listed domains and their subdomains, with CamCore local allow and deny policy applied. blocklist.txt carries the same domains in exact-match format as the rollback feed (OPS-1062).",
       "licence": "GPL-3.0"
     },
     {

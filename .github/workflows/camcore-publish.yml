@@ -48,42 +48,49 @@ jobs:
       - name: Build CamCore blocklist
         run: python camcore/tools/publish_blocklist.py
 
-      - name: Publish changed blocklist
+      - name: Publish changed blocklists
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
 
-          if git diff --quiet -- blocklist.txt; then
-            echo "Published blocklist is already current."
-            exit 0
-          fi
+          # blocklist-adblock.txt is the production feed; blocklist.txt is the
+          # exact-match rollback feed (OPS-1062). Both carry the same domains.
+          for feed in blocklist-adblock.txt blocklist.txt; do
+            if git ls-files --error-unmatch "${feed}" > /dev/null 2>&1 && git diff --quiet -- "${feed}"; then
+              echo "${feed} is already current."
+              continue
+            fi
 
-          current_sha="$(gh api "repos/${GITHUB_REPOSITORY}/contents/blocklist.txt?ref=main" --jq '.sha')"
-          export CURRENT_SHA="${current_sha}"
+            # A missing file on main has no SHA; the contents API then creates it.
+            current_sha="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${feed}?ref=main" --jq '.sha' 2> /dev/null || true)"
+            export FEED="${feed}" CURRENT_SHA="${current_sha}"
 
-          python - <<'PY'
+            python - <<'PY'
           import base64
           import json
           import os
           from pathlib import Path
 
+          feed = os.environ["FEED"]
           payload = {
-              "message": "chore(dns): refresh published blocklist",
-              "content": base64.b64encode(Path("blocklist.txt").read_bytes()).decode("ascii"),
-              "sha": os.environ["CURRENT_SHA"],
+              "message": f"chore(dns): refresh published {feed}",
+              "content": base64.b64encode(Path(feed).read_bytes()).decode("ascii"),
               "branch": "main",
           }
+          if os.environ.get("CURRENT_SHA"):
+              payload["sha"] = os.environ["CURRENT_SHA"]
           Path("/tmp/camcore-blocklist-payload.json").write_text(
               json.dumps(payload), encoding="utf-8"
           )
           PY
 
-          gh api \
-            --method PUT \
-            "repos/${GITHUB_REPOSITORY}/contents/blocklist.txt" \
-            --input /tmp/camcore-blocklist-payload.json \
-            > /dev/null
+            gh api \
+              --method PUT \
+              "repos/${GITHUB_REPOSITORY}/contents/${feed}" \
+              --input /tmp/camcore-blocklist-payload.json \
+              > /dev/null
 
-          echo "Published updated CamCore blocklist."
+            echo "Published updated ${feed}."
+          done

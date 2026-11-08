@@ -17,7 +17,7 @@ The default production model is intentionally minimal: one approved upstream sou
 | `tools/check_sources.py` | Read-only check that the published feed is reachable, plausibly sized and blocks no allow-listed name |
 | `tests/` | Unit tests for CamCore DNS validation and policy controls |
 
-The generated repository-root `blocklist.txt` is a production output and must not be edited manually.
+The generated repository-root `blocklist-adblock.txt` (production) and `blocklist.txt` (rollback) are outputs and must not be edited manually.
 
 ## Source states
 
@@ -46,8 +46,12 @@ subdomain.example.net
 
 | Entry | Allow-list | Deny-list |
 | --- | --- | --- |
-| `subdomain.example.net` | That exact name is never published | That exact name is added to the feed |
+| `subdomain.example.net` | That exact name is never published | Published as `\|\|subdomain.example.net^`, which blocks it and every name beneath it |
 | `*.example.com` | `example.com` and every name beneath it are never published | Not accepted |
+
+Pi-hole applies each `||domain^` rule in the production feed to the domain and every subdomain. Removing an exact allow-list name from the feed therefore does not unblock it if a **parent** domain is still listed. The publisher fails the build in that case rather than silently dropping the parent and unblocking everything beneath it. Resolve it in review: either accept the block, or allow-list the parent deliberately if every name beneath it is genuinely required. For an urgent fix, use `pihole allow <name>` on Mars, which Pi-hole applies ahead of the adlist.
+
+A deny-list entry must not be a parent of an allow-list entry, for the same reason.
 
 Entries must:
 

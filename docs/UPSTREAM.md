@@ -19,13 +19,14 @@ HaGeZi and its contributors retain authorship of their upstream generated lists,
 The production relationship is intentionally controlled:
 
 1. `camcore/sources.json` identifies the active production policy and approved upstream URL.
-2. The CamCore publisher downloads the approved HaGeZi Multi NORMAL domains feed over HTTPS.
+2. The CamCore publisher downloads the approved HaGeZi Multi NORMAL Adblock feed (`adblock/multi.txt`) over HTTPS. Only `||domain^` rules are accepted.
 3. Upstream data is validated before processing.
 4. Domains in `camcore/denylist.txt` are added.
 5. Every name covered by `camcore/allowlist.txt` is removed.
 6. The result is normalised, deduplicated, sorted and validated.
-7. A successful build is published as the CamCore-owned `blocklist.txt` URL used by CamCore resolvers.
-8. A failed build leaves the last-known-good production feed untouched.
+7. Any allow-listed name that a listed parent domain would block through subdomain matching fails the build.
+8. A successful build is published as the CamCore-owned `blocklist-adblock.txt` URL used by CamCore resolvers, with the same domains in `blocklist.txt` as the rollback feed.
+9. A failed build leaves the last-known-good feeds untouched.
 
 CamCore resolvers therefore consume the **CamCore production URL**, not the upstream HaGeZi URL directly.
 

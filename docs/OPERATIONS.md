@@ -78,7 +78,7 @@ For a high-risk feed change, do not publish it to `blocklist.txt` first. Instead
 4. Validate Mars. Venus keeps its current adlist and gravity throughout.
 5. Resume nebula-sync once Mars has passed, and confirm Venus matches after the next sync.
 
-Rollback is to point the Mars adlist back at `blocklist.txt`. OPS-1062 uses this method.
+Rollback is to point the Mars adlist back at `blocklist.txt`. OPS-1062 uses this method: the candidate is `blocklist-adblock.txt`, published alongside `blocklist.txt` with the same domains, so publishing it does not change either resolver until the Mars adlist is switched.
 
 If replication state cannot be confirmed, stop the rollout.
 

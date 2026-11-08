@@ -26,10 +26,12 @@ Production DNS filtering policy, controlled publishing and upstream-source gover
 CamCore-managed Pi-hole resolvers use one stable CamCore-owned feed:
 
 ```text
-https://raw.githubusercontent.com/Team-CamCore/dns-blocklists/main/blocklist.txt
+https://raw.githubusercontent.com/Team-CamCore/dns-blocklists/main/blocklist-adblock.txt
 ```
 
-The production feed is generated from **HaGeZi Multi NORMAL** and processed through CamCore policy before publication.
+The production feed is generated from **HaGeZi Multi NORMAL** and processed through CamCore policy before publication. It uses Adblock syntax (`||domain^`), which Pi-hole v6 applies to each listed domain **and every subdomain**, as HaGeZi intends.
+
+`blocklist.txt` carries the same domains in exact-match format. It is the rollback feed while OPS-1062 is rolled out and is retired in that change's cleanup step. Pi-hole matches its entries exactly, so subdomains of listed domains are **not** blocked through it.
 
 Do **not** subscribe CamCore resolvers directly to the upstream HaGeZi source in addition to this URL. The CamCore feed already incorporates the approved upstream data and local policy.
 
@@ -38,7 +40,7 @@ Do **not** subscribe CamCore resolvers directly to the upstream HaGeZi source in
 CamCore deliberately keeps DNS filtering simple and controlled. This is the **minimal** CamCore DNS filtering baseline: one approved upstream source, one published production feed and only evidenced local exceptions.
 
 1. **One approved upstream baseline** — HaGeZi Multi NORMAL.
-2. **One CamCore production URL** — `blocklist.txt` in this repository.
+2. **One CamCore production URL** — `blocklist-adblock.txt` in this repository, with `blocklist.txt` as the rollback feed during OPS-1062.
 3. **One local allow-list** — every name CamCore must never block: CamCore namespaces, the service hosts CamCore relies on, and evidenced exceptions.
 4. **One local deny-list** — exact CamCore additions that must be included in the published feed.
 5. **One validation and publishing pipeline** — failed or implausible generation never replaces the last-known-good production list.
@@ -64,16 +66,16 @@ Remove everything covered by camcore/allowlist.txt
 Normalise • deduplicate • sort
         │
         ▼
-Validate final output and size guard
+Validate final output, size guard and parent-domain conflicts
         │
         ▼
-blocklist.txt
+blocklist-adblock.txt (production) • blocklist.txt (rollback)
         │
         ▼
 CamCore Pi-hole resolvers
 ```
 
-The publisher rejects malformed upstream data, refuses a build below 100,000 domains or more than 20% smaller than the current feed, removes every allow-listed name, and updates `blocklist.txt` only after a successful build. The allow-list is applied last, so it always wins over both upstream data and the local deny-list.
+The publisher rejects malformed upstream data, refuses a build below 100,000 domains or more than 20% smaller than the current feed, removes every allow-listed name, fails if a listed parent domain would block an allow-listed name through subdomain matching, and updates both feeds only after a successful build. The allow-list is applied last, so it always wins over both upstream data and the local deny-list.
 
 If generation fails, the existing production feed remains untouched.
 
@@ -113,7 +115,8 @@ The machine-readable source of truth is [`camcore/sources.json`](camcore/sources
 
 | Path or branch | Purpose | Authority |
 | --- | --- | --- |
-| [`blocklist.txt`](blocklist.txt) | Stable Pi-hole production feed | Generated production consumable |
+| `blocklist-adblock.txt` | Pi-hole production feed (`\|\|domain^`, blocks subdomains) | Generated production consumable |
+| [`blocklist.txt`](blocklist.txt) | Exact-match rollback feed during OPS-1062 | Generated rollback consumable |
 | [`camcore/sources.json`](camcore/sources.json) | Approved source manifest and deployment state | Authoritative policy |
 | [`camcore/allowlist.txt`](camcore/allowlist.txt) | Exact domains explicitly allowed by CamCore | Authoritative local policy |
 | [`camcore/denylist.txt`](camcore/denylist.txt) | Exact domains explicitly denied by CamCore | Authoritative local policy |
@@ -125,7 +128,7 @@ The machine-readable source of truth is [`camcore/sources.json`](camcore/sources
 | `.github/workflows/camcore-*` | Validation, publication and health automation | Approved GitHub Actions |
 | `upstream-hagezi` | Preserved upstream fork snapshot | Provenance and controlled reference only |
 
-`blocklist.txt` is generated. **Do not edit it manually.**
+`blocklist-adblock.txt` and `blocklist.txt` are generated. **Do not edit them manually.**
 
 The `upstream-hagezi` branch is not a deployment branch and must not be merged into `main`.
 
@@ -141,13 +144,13 @@ It runs the CamCore unit tests and repository validator to confirm that policy f
 
 Runs when production policy or publishing logic changes, can be started manually, and refreshes daily.
 
-This is the only intentionally write-capable workflow on `main`. Its write permission is limited to repository contents so it can replace `blocklist.txt` after a successful build.
+This is the only intentionally write-capable workflow on `main`. Its write permission is limited to repository contents so it can replace `blocklist-adblock.txt` and `blocklist.txt` after a successful build.
 
 ### Check CamCore DNS source health
 
 Runs after a successful publication, on its scheduled health check and by manual dispatch.
 
-It validates repository policy, downloads the published CamCore production feed, and confirms it is reachable, holds at least 100,000 entries and blocks no allow-listed name.
+It validates repository policy, downloads the published CamCore production feed and rollback feed, and confirms each is reachable, holds at least 100,000 entries and blocks no allow-listed name. For the Adblock feed it also confirms that no parent of an allow-listed name is listed.
 
 ## Resolver deployment standard
 

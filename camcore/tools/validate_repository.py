@@ -54,10 +54,15 @@ CANONICAL_DESCRIPTION = (
     "delivers secure, reliable and professionally managed digital services for "
     "the Cameron household, Cameron-Media and associated family operations."
 )
+# OPS-1062: production is the Adblock feed; blocklist.txt is the rollback feed
+# until the cleanup step retires it.
 APPROVED_PRODUCTION_SOURCES = {
     "camcore-hagezi-multi-normal": {
-        "format": "domains",
-        "url": "https://raw.githubusercontent.com/Team-CamCore/dns-blocklists/main/blocklist.txt",
+        "format": "adblock",
+        "url": "https://raw.githubusercontent.com/Team-CamCore/dns-blocklists/main/blocklist-adblock.txt",
+        "rollback_format": "domains",
+        "rollback_url": "https://raw.githubusercontent.com/Team-CamCore/dns-blocklists/main/blocklist.txt",
+        "upstream_url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/multi.txt",
         "upstream_repository": "https://github.com/hagezi/dns-blocklists",
         "licence": "GPL-3.0",
     }
@@ -174,10 +179,18 @@ def validate_manifest(path: Path) -> list[str]:
         errors.extend(validate_public_https_url(source.get("upstream_repository"), f"{label}: upstream_repository"))
         if "upstream_url" in source:
             errors.extend(validate_public_https_url(source.get("upstream_url"), f"{label}: upstream_url"))
-        if isinstance(source_url, str):
-            if source_url in urls:
-                errors.append(f"{label}: duplicate source URL: {source_url}")
-            urls.add(source_url)
+        rollback_url = source.get("rollback_url")
+        if "rollback_url" in source:
+            errors.extend(validate_public_https_url(rollback_url, f"{label}: rollback_url"))
+            if source.get("rollback_format") not in {"hosts", "adblock", "domains"}:
+                errors.append(f"{label}: invalid rollback_format: {source.get('rollback_format')!r}")
+        elif "rollback_format" in source:
+            errors.append(f"{label}: rollback_format requires rollback_url")
+        for candidate in (source_url, rollback_url):
+            if isinstance(candidate, str):
+                if candidate in urls:
+                    errors.append(f"{label}: duplicate source URL: {candidate}")
+                urls.add(candidate)
         for key in ("name", "purpose", "licence"):
             if not isinstance(source.get(key), str) or not source[key].strip():
                 errors.append(f"{label}: {key} must be a non-empty string")
@@ -345,6 +358,12 @@ def validate_local_policy(root: Path) -> list[str]:
         rule = policy.matching_rule(domain)
         if rule:
             errors.append(f"camcore/denylist.txt: {domain} conflicts with allow-list rule {rule}")
+    # The Adblock feed publishes each deny entry as ||domain^, which also blocks
+    # every name beneath it, so a deny entry must not be a parent of an allow rule.
+    for rule, parent in policy.parent_conflicts(set(deny)):
+        errors.append(
+            f"camcore/denylist.txt: {parent} would block allow-list rule {rule} through subdomain matching"
+        )
     return errors
 
 
