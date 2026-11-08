@@ -59,7 +59,7 @@ The intended workflow permission model is:
 | --- | --- | --- |
 | `camcore-validate.yml` | Read-only | Validate policy and run tests |
 | `camcore-source-health.yml` | Read-only | Check the published production feed |
-| `camcore-publish.yml` | Repository contents write | Replace `blocklist.txt` after successful generation |
+| `camcore-publish.yml` | Repository contents write | Replace `blocklist-adblock.txt` and `blocklist.txt` after successful generation |
 
 `camcore-publish.yml` is the only intentionally write-capable workflow on the default branch.
 

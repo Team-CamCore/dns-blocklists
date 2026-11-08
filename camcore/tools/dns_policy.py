@@ -15,6 +15,11 @@ from pathlib import Path
 
 LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 WILDCARD_PREFIX = "*."
+# An Adblock-style rule that blocks a domain and every name beneath it. This is
+# the only Adblock syntax CamCore accepts or publishes.
+ADBLOCK_RULE_RE = re.compile(r"^\|\|([^|^$/]+)\^$")
+# Lines a feed parser treats as comments or list headers rather than entries.
+COMMENT_PREFIXES = ("#", "!", "[")
 
 # Namespaces that must always be present in the allow-list. They cover
 # CamCore-owned public and private names and local-only resolver namespaces.
@@ -71,6 +76,28 @@ def covered_by(domain: str, namespace: str) -> bool:
     return domain == namespace or domain.endswith(f".{namespace}")
 
 
+def parent_domains(domain: str) -> list[str]:
+    """Return every proper parent of ``domain``, nearest first, excluding the TLD alone.
+
+    ``a.b.example.com`` gives ``["b.example.com", "example.com"]``. A single
+    label is never returned because no CamCore feed entry can be a bare TLD.
+    """
+    labels = domain.split(".")
+    return [".".join(labels[index:]) for index in range(1, len(labels) - 1)]
+
+
+def parse_adblock_rule(value: str) -> str | None:
+    """Return the domain of a ``||domain^`` rule, or None for any other syntax."""
+    match = ADBLOCK_RULE_RE.fullmatch(value)
+    if match and is_valid_domain(match.group(1)):
+        return match.group(1)
+    return None
+
+
+def adblock_rule(domain: str) -> str:
+    return f"||{domain}^"
+
+
 @dataclass
 class AllowPolicy:
     """Exact names and namespaces that the CamCore feed must never contain."""
@@ -91,6 +118,22 @@ class AllowPolicy:
 
     def permits(self, domain: str) -> bool:
         return self.matching_rule(domain) is not None
+
+    def parent_conflicts(self, blocked: set[str]) -> list[tuple[str, str]]:
+        """Return (allow rule, blocked parent) pairs that subdomain matching would break.
+
+        Under Adblock ``||domain^`` semantics a blocked parent also blocks every
+        name beneath it, so removing an exact allow-listed name from the feed is
+        not enough when one of its parents is still listed. These conflicts need
+        a person to decide; the build must never silently drop the parent.
+        """
+        conflicts: list[tuple[str, str]] = []
+        for name in sorted(self.exact):
+            conflicts.extend((name, parent) for parent in parent_domains(name) if parent in blocked)
+        for namespace in sorted(self.namespaces):
+            rule = f"{WILDCARD_PREFIX}{namespace}"
+            conflicts.extend((rule, parent) for parent in parent_domains(namespace) if parent in blocked)
+        return conflicts
 
 
 def read_list_entries(path: Path, allow_wildcards: bool) -> tuple[list[str], list[str]]:
@@ -154,9 +197,17 @@ def load_deny_entries(path: Path) -> set[str]:
 
 
 def feed_domains(text: str) -> list[str]:
-    """Return the data lines of a published CamCore domains feed."""
-    return [
-        line.strip()
-        for line in text.splitlines()
-        if line.strip() and not line.lstrip().startswith(("#", "!"))
-    ]
+    """Return the domains of a published CamCore feed in domains or Adblock format.
+
+    ``||example.com^`` is returned as ``example.com``; plain lines are returned
+    unchanged. Comment and header lines are skipped.
+    """
+    domains: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith(COMMENT_PREFIXES):
+            continue
+        if line.startswith("||") and line.endswith("^"):
+            line = line[2:-1]
+        domains.append(line)
+    return domains

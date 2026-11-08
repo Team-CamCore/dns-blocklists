@@ -55,10 +55,47 @@ plex.tv
             ["login.microsoftonline.com", "plex.tv"],
         )
 
+    def test_adblock_feed_entries_are_matched_by_domain(self) -> None:
+        allow = dns_policy.build_allow_policy(["plex.tv"])
+        feed = "# CamCore DNS Blocklist (Adblock)\n||ads.example^\n||plex.tv^\n"
+        self.assertEqual(check_sources.blocked_allowlisted_names(feed, allow), ["plex.tv"])
+
+    def test_reports_listed_parent_of_allow_listed_name(self) -> None:
+        allow = dns_policy.build_allow_policy(["login.vendor.example", "*.camcore.au"])
+        feed = "||vendor.example^\n||ads.example^\n"
+        self.assertEqual(
+            check_sources.blocked_allowlisted_parents(feed, allow),
+            ["login.vendor.example under vendor.example"],
+        )
+
+    def test_checks_rollback_feed_while_published(self) -> None:
+        source = {
+            "url": "https://example.org/blocklist-adblock.txt",
+            "format": "adblock",
+            "rollback_url": "https://example.org/blocklist.txt",
+            "rollback_format": "domains",
+        }
+        self.assertEqual(
+            check_sources.feeds_to_check(source),
+            [
+                ("https://example.org/blocklist-adblock.txt", "adblock"),
+                ("https://example.org/blocklist.txt", "domains"),
+            ],
+        )
+
     def test_committed_feed_blocks_no_allow_listed_name(self) -> None:
         allow = dns_policy.load_allow_policy(REPO_ROOT / "camcore/allowlist.txt")
         feed = (REPO_ROOT / "blocklist.txt").read_text(encoding="utf-8")
         self.assertEqual(check_sources.blocked_allowlisted_names(feed, allow), [])
+
+    def test_committed_feed_lists_no_parent_of_an_allow_listed_name(self) -> None:
+        allow = dns_policy.load_allow_policy(REPO_ROOT / "camcore/allowlist.txt")
+        for name in ("blocklist-adblock.txt", "blocklist.txt"):
+            path = REPO_ROOT / name
+            if path.is_file():
+                with self.subTest(feed=name):
+                    text = path.read_text(encoding="utf-8")
+                    self.assertEqual(check_sources.blocked_allowlisted_parents(text, allow), [])
 
 
 class ProductionSourceSelectionTests(unittest.TestCase):

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Perform a bounded, read-only health check of approved production DNS sources.
 
-For each production feed this confirms that the feed is reachable over HTTPS,
-contains a plausible number of entries, and blocks none of the names in the
-CamCore allow-list.
+For each production feed, and its rollback feed while one is published, this
+confirms that the feed is reachable over HTTPS, contains a plausible number of
+entries, and blocks none of the names in the CamCore allow-list. For an Adblock
+feed it also confirms that no parent of an allow-listed name is listed, because
+a ``||parent^`` rule would block the allow-listed name through subdomain matching.
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = REPO_ROOT / "camcore/sources.json"
 ALLOWLIST_PATH = REPO_ROOT / "camcore/allowlist.txt"
 READ_LIMIT = 20 * 1024 * 1024
-USER_AGENT = "CamCore-DNS-Source-Health/1.1 (+https://github.com/Team-CamCore/dns-blocklists)"
+USER_AGENT = "CamCore-DNS-Source-Health/1.2 (+https://github.com/Team-CamCore/dns-blocklists)"
 
 HOSTS_LINE_RE = re.compile(
     r"^\s*(?:0\.0\.0\.0|127\.0\.0\.1|::)\s+([A-Za-z0-9.-]+)(?:\s|$)"
@@ -55,6 +57,20 @@ def blocked_allowlisted_names(text: str, allow: AllowPolicy) -> list[str]:
     return sorted(domain for domain in feed_domains(text) if allow.permits(domain.lower()))
 
 
+def blocked_allowlisted_parents(text: str, allow: AllowPolicy) -> list[str]:
+    """Return "rule under parent" descriptions for allow-listed names an Adblock feed would block."""
+    listed = {domain.lower() for domain in feed_domains(text)}
+    return [f"{rule} under {parent}" for rule, parent in allow.parent_conflicts(listed)]
+
+
+def feeds_to_check(source: dict[str, object]) -> list[tuple[str, str]]:
+    """Return (url, format) for the production feed and any rollback feed."""
+    feeds = [(str(source["url"]), str(source["format"]))]
+    if source.get("rollback_url"):
+        feeds.append((str(source["rollback_url"]), str(source.get("rollback_format", "domains"))))
+    return feeds
+
+
 def select_production_sources(manifest: dict[str, object]) -> list[dict[str, object]]:
     """Return only records explicitly active in production."""
     sources = manifest.get("sources")
@@ -69,11 +85,14 @@ def select_production_sources(manifest: dict[str, object]) -> list[dict[str, obj
     ]
 
 
-def check_source(source: dict[str, object], allow: AllowPolicy) -> str:
-    """Fetch the feed and return a human-readable success summary."""
+def check_source(source: dict[str, object], allow: AllowPolicy) -> list[str]:
+    """Check every feed a production source publishes and return success summaries."""
     source_id = str(source["id"])
-    url = str(source["url"])
-    source_format = str(source["format"])
+    return [check_feed(source_id, url, source_format, allow) for url, source_format in feeds_to_check(source)]
+
+
+def check_feed(source_id: str, url: str, source_format: str, allow: AllowPolicy) -> str:
+    """Fetch one feed and return a human-readable success summary."""
 
     request = urllib.request.Request(
         url,
@@ -111,10 +130,17 @@ def check_source(source: dict[str, object], allow: AllowPolicy) -> str:
     blocked = blocked_allowlisted_names(text, allow)
     if blocked:
         raise RuntimeError(
-            f"source blocks {len(blocked)} allow-listed name(s): {', '.join(blocked[:10])}"
+            f"{url} blocks {len(blocked)} allow-listed name(s): {', '.join(blocked[:10])}"
         )
+    if source_format == "adblock":
+        parents = blocked_allowlisted_parents(text, allow)
+        if parents:
+            raise RuntimeError(
+                f"{url} blocks {len(parents)} allow-listed name(s) through a listed parent: "
+                f"{', '.join(parents[:10])}"
+            )
 
-    return f"{source_id}: reachable; {count} entries; no allow-listed name is blocked"
+    return f"{source_id}: {url} reachable; {count} {source_format} entries; no allow-listed name is blocked"
 
 
 def main() -> int:
@@ -133,7 +159,8 @@ def main() -> int:
     failures: list[str] = []
     for source in sources:
         try:
-            print(check_source(source, allow))
+            for summary in check_source(source, allow):
+                print(summary)
         except (KeyError, OSError, RuntimeError, urllib.error.URLError) as exc:
             failures.append(f"{source.get('id', '<unknown>')}: {exc}")
 
