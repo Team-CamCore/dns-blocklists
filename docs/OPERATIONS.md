@@ -34,10 +34,20 @@ Do not use live resolver exports or query logs as repository attachments. Store 
 
 ### How a change reaches the resolvers
 
-- **Pi-hole configuration** (adlists, local records, groups, local allow or deny entries) is changed on **Mars only**. nebula-sync on Mars performs a full sync to Venus every 15 minutes and runs gravity on Venus after each sync. A change made only on Venus is overwritten at the next sync; a fault on Mars reaches Venus within 15 minutes.
+- **Pi-hole configuration** (adlists, local records, groups, local allow or deny entries) is changed on **Mars only**. nebula-sync on Mars performs a full sync to Venus every 15 minutes and runs gravity on both Mars and Venus after each sync. A change made only on Venus is overwritten at the next sync; a fault on Mars reaches Venus within 15 minutes.
 - **Feed content** (anything that changes `blocklist.txt`) goes live when the publisher runs on `main`. Mars and Venus rebuild gravity on the same 15-minute cycle. On 30 October 2026 both rebuilt in the same second at 21:00, 21:15, 21:45 and 22:00 AEDT, and both loaded the feed published at 21:47 at 22:00. A published feed change therefore reaches **both** resolvers within about 15 minutes.
 
-What triggers the 15-minute rebuild on Mars is not yet confirmed; it may be a cron entry or a nebula-sync setting. Until it is, do not rely on pausing nebula-sync to keep a feed change off either resolver. To identify the trigger, run on Mars:
+The 15-minute rebuild is triggered by nebula-sync (confirmed 11 November 2026, OPS-1112). It runs with `RUN_GRAVITY=true` on a `*/15 * * * *` schedule, and its gravity step rebuilds gravity on Mars as well as Venus. No cron job on Mars is involved; Pi-hole's own cron refreshes gravity only weekly.
+
+Pausing nebula-sync therefore stops the 15-minute rebuild on **both** resolvers. While it is paused:
+
+- A published feed change reaches neither resolver until sync resumes, apart from the weekly Pi-hole cron on Mars.
+- To load a feed change, run `pihole -g` by hand on the resolver that should load it.
+- Venus receives no Pi-hole configuration changes.
+
+Do not use a pause as the routine way to hold back a feed change. It also holds back the daily publish and configuration replication, and the feed loads on both resolvers as soon as sync resumes. Do not set `RUN_GRAVITY=false` without an approved CamCore Change, because the daily publish relies on the 15-minute rebuild.
+
+To re-check the trigger, run on Mars:
 
 ```bash
 sudo crontab -l; cat /etc/cron.d/pihole
@@ -74,11 +84,11 @@ For a high-risk feed change, do not publish it to `blocklist.txt` first. Instead
 
 1. Publish the candidate to a separate feed file in this repository.
 2. Pause nebula-sync on Mars and confirm it is paused.
-3. Point only the Mars adlist at the candidate URL and run `pihole -g`.
-4. Validate Mars. Venus keeps its current adlist and gravity throughout.
+3. Point only the Mars adlist at the candidate URL and run `pihole -g`. With nebula-sync paused, nothing else rebuilds gravity on Mars.
+4. Validate Mars. Venus keeps its current adlist and gravity throughout, and does not load new daily publishes while sync is paused.
 5. Resume nebula-sync once Mars has passed, and confirm Venus matches after the next sync.
 
-Rollback is to point the Mars adlist back at `blocklist.txt`. OPS-1062 uses this method: the candidate is `blocklist-adblock.txt`, published alongside `blocklist.txt` with the same domains, so publishing it does not change either resolver until the Mars adlist is switched.
+Rollback is to point the Mars adlist back at `blocklist.txt` and run `pihole -g` again. OPS-1062 uses this method: the candidate is `blocklist-adblock.txt`, published alongside `blocklist.txt` with the same domains, so publishing it does not change either resolver until the Mars adlist is switched.
 
 If replication state cannot be confirmed, stop the rollout.
 
@@ -159,7 +169,7 @@ When a DNS change causes disruption:
 
 1. Stop further rollout. For a configuration fault that has not reached Venus, pause nebula-sync on Mars. A feed fault reaches both resolvers on the 15-minute gravity cycle, so revert it promptly.
 2. For a feed fault, revert the merge on `main` and run the publish workflow manually; for a configuration fault, restore the previous setting on Mars.
-3. Rebuild gravity on Mars with `pihole -g`.
+3. Rebuild gravity on Mars with `pihole -g`. Venus reloads the reverted feed at the next nebula-sync run; if nebula-sync is paused, Venus keeps its current gravity until sync resumes.
 4. Confirm the DNS service is healthy.
 5. Query Mars and Venus directly, and resume nebula-sync once Mars is correct.
 6. Re-test internet, Microsoft 365, NetBird and CamCore services.

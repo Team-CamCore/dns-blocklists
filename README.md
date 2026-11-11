@@ -154,7 +154,7 @@ It validates repository policy, downloads the published CamCore production feed 
 
 ## Resolver deployment standard
 
-CamCore runs two Pi-hole resolvers: **Mars** (primary) and **Venus** (secondary). nebula-sync on Mars replicates the Mars Pi-hole configuration to Venus every 15 minutes and runs gravity on Venus after each sync. Venus is a configuration mirror, not an independent test stage.
+CamCore runs two Pi-hole resolvers: **Mars** (primary) and **Venus** (secondary). nebula-sync on Mars replicates the Mars Pi-hole configuration to Venus every 15 minutes and runs gravity on both resolvers after each sync. Venus is a configuration mirror, not an independent test stage.
 
 1. Make Pi-hole configuration changes on **Mars only**. A change made on Venus is overwritten at the next sync.
 2. For a higher-risk change, pause nebula-sync first so a fault on Mars cannot reach Venus.
@@ -163,9 +163,9 @@ CamCore runs two Pi-hole resolvers: **Mars** (primary) and **Venus** (secondary)
 5. Resume nebula-sync. After the next sync, query Venus directly and confirm both resolvers report the same gravity count.
 6. Record any significant production change in CamCore Operations.
 
-**A merged policy change reaches both resolvers.** The publisher runs when policy files change on `main`. Mars and Venus rebuild gravity on the same 15-minute cycle (observed 30 October 2026), so a published feed reaches both within about 15 minutes. Pausing nebula-sync does not hold it back. Merge only when you are ready to validate both resolvers.
+**A merged policy change reaches both resolvers.** The publisher runs when policy files change on `main`. nebula-sync rebuilds gravity on Mars and Venus at the end of every 15-minute sync (confirmed 11 November 2026), so a published feed reaches both within about 15 minutes. Pausing nebula-sync stops that rebuild on both resolvers; it is not the routine way to hold back a feed change, because it also stops configuration replication and the daily publish. Merge only when you are ready to validate both resolvers.
 
-To stage a high-risk feed change on Mars alone, publish the candidate to a separate feed file, pause nebula-sync, and point only the Mars adlist at the candidate URL. Venus keeps its current adlist until sync resumes.
+To stage a high-risk feed change on Mars alone, publish the candidate to a separate feed file, pause nebula-sync, point only the Mars adlist at the candidate URL and run `pihole -g` on Mars. Venus keeps its current adlist and gravity until sync resumes.
 
 The full procedure and rollback requirements are in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
