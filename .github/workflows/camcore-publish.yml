@@ -1,4 +1,5 @@
 name: Publish CamCore DNS blocklist
+# Cron re-registered 21 Nov 2026 after the fork-disable trap (OPS-1528).
 
 on:
   push:
