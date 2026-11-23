@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines how **CamCore – Cameron Family Secure Network** consumes, attributes and governs third-party DNS filtering sources.
+This document defines how CamCore consumes, attributes and governs third-party DNS filtering sources.
 
 The production source of truth is [`camcore/sources.json`](../camcore/sources.json). Upstream content is never considered production-approved merely because it exists in this fork, appears on the provenance branch or is technically compatible with Pi-hole.
 

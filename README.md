@@ -1,7 +1,7 @@
 <!-- CAMCORE-REPOSITORY-BRANDING:START -->
 <p align="center">
   <a href="https://camcore.au">
-    <img src=".github/brand/camcore-repository-banner.svg" alt="CamCore" width="520">
+    <img src=".github/brand/camcore-repository-banner.png" alt="CamCore" width="640">
   </a>
 </p>
 <!-- CAMCORE-REPOSITORY-BRANDING:END -->
@@ -13,11 +13,9 @@
 [![Source health](https://github.com/Team-CamCore/dns-blocklists/actions/workflows/camcore-source-health.yml/badge.svg)](https://github.com/Team-CamCore/dns-blocklists/actions/workflows/camcore-source-health.yml)
 [![Licence: GPL-3.0](https://img.shields.io/badge/licence-GPL--3.0-blue.svg)](LICENSE)
 
-Production DNS filtering policy, controlled publishing and upstream-source governance for **CamCore – Cameron Family Secure Network**.
+The DNS filtering policy, publishing pipeline and upstream-source rules behind the blocklist used by CamCore's Pi-hole resolvers.
 
-> **CamCore is a privately owned and operated family technology network that delivers secure, reliable and professionally managed digital services for the Cameron household, Cameron-Media and associated family operations.**
-
-**Built for Home. Engineered Like Enterprise.**
+> **CamCore is an Australian business that provides domain names, web hosting and business email for households, sole traders and small businesses, with IT help to back them up.**
 
 ---
 
@@ -142,15 +140,21 @@ It runs the CamCore unit tests and repository validator to confirm that policy f
 
 ### Publish CamCore DNS blocklist
 
-Runs when production policy or publishing logic changes, can be started manually, and refreshes daily.
+Runs when production policy or publishing logic changes on `main`, can be started manually, and refreshes daily at 18:45 UTC. Each run downloads the current HaGeZi Multi NORMAL Adblock list (`adblock/multi.txt` through jsDelivr, as set in `camcore/sources.json`), so upstream updates reach the feed through this daily build, not by merging upstream commits.
 
 This is the only intentionally write-capable workflow on `main`. Its write permission is limited to repository contents so it can replace `blocklist-adblock.txt` and `blocklist.txt` after a successful build.
 
 ### Check CamCore DNS source health
 
-Runs after a successful publication, on its scheduled health check and by manual dispatch.
+Runs after a successful publication, daily at 19:23 UTC and by manual dispatch.
 
 It validates repository policy, downloads the published CamCore production feed and rollback feed, and confirms each is reachable, holds at least 100,000 entries and blocks no allow-listed name. For the Adblock feed it also confirms that no parent of an allow-listed name is listed.
+
+All three workflows run on GitHub-hosted runners.
+
+### If the daily refresh stops
+
+This repository is a GitHub fork, and GitHub can disable a fork's workflows without warning. When that happens, the feed stops refreshing and new runs sit queued. If the feed's `# Upstream version` header is more than a day or two old, check the Actions tab first. After workflows are re-enabled, scheduled runs may still not return: disable and re-enable each scheduled workflow from its own page, then start a manual run. The first scheduled run afterwards can be several hours late (OPS-1528).
 
 ## Resolver deployment standard
 

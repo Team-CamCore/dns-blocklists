@@ -50,9 +50,9 @@ WORKFLOW_PATHS = (
 )
 PUBLISH_WORKFLOW = Path(".github/workflows/camcore-publish.yml")
 CANONICAL_DESCRIPTION = (
-    "CamCore is a privately owned and operated family technology network that "
-    "delivers secure, reliable and professionally managed digital services for "
-    "the Cameron household, Cameron-Media and associated family operations."
+    "CamCore is an Australian business that provides domain names, web hosting and "
+    "business email for households, sole traders and small businesses, with IT help "
+    "to back them up."
 )
 # OPS-1062: production is the Adblock feed; blocklist.txt is the rollback feed
 # until the cleanup step retires it.
