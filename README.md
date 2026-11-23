@@ -15,6 +15,8 @@
 
 The DNS filtering policy, publishing pipeline and upstream-source rules behind the blocklist used by CamCore's Pi-hole resolvers.
 
+> **CamCore is an Australian business that provides domain names, web hosting and business email for households, sole traders and small businesses, with IT help to back them up.**
+
 ---
 
 ## Production feed
