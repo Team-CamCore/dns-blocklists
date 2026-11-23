@@ -1,6 +1,6 @@
 # Contributing to CamCore DNS Blocklists
 
-This repository contains the DNS filtering policy and publishing controls used by **CamCore – Cameron Family Secure Network**.
+This repository contains the DNS filtering policy and publishing controls used by CamCore.
 
 CamCore accepts changes only when they solve a specific, evidenced operational or security requirement. The objective is not to maximise the number of blocked domains; it is to maintain a stable, explainable and low-risk DNS filtering baseline.
 

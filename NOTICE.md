@@ -1,6 +1,6 @@
 # Attribution Notice
 
-The CamCore-owned policy, documentation, validation tooling and publishing controls on the default branch are maintained for **CamCore – Cameron Family Secure Network** under this repository's GNU General Public License v3.0.
+The CamCore-owned policy, documentation, validation tooling and publishing controls on the default branch are maintained by CamCore under this repository's GNU General Public License v3.0.
 
 This repository originated as a fork of [HaGeZi DNS Blocklists](https://github.com/hagezi/dns-blocklists). A snapshot of the inherited upstream repository is retained on the `upstream-hagezi` branch for provenance and controlled reference. HaGeZi and its contributors retain authorship of their original material; CamCore does not claim authorship of it.
 

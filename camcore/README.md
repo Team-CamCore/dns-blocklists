@@ -1,6 +1,6 @@
 # CamCore DNS Policy
 
-This directory contains the CamCore-owned policy, validation and publishing layer for **CamCore – Cameron Family Secure Network**.
+This directory contains the CamCore-owned policy, validation and publishing layer.
 
 The default production model is intentionally minimal: one approved upstream source, one generated CamCore production feed, and exact local exceptions only where required.
 
